@@ -1,0 +1,26 @@
+{
+  "name": "Gestionale Oratorio Sergnano",
+  "short_name": "Oratorio",
+  "description": "Gestionale prenotazioni e iscrizioni Oratorio di Sergnano",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f2",
+  "theme_color": "#E25B45",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/logo-oratorio.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo-oratorio.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "it"
+}
