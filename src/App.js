@@ -9203,10 +9203,10 @@ function AdminHomepage({ user, goBack }) {
     <div className="content">
       <div className="card-header" style={{ marginBottom: 20 }}>
         <div>
-          <div className="card-title" style={{ fontSize: '1.2rem' }}>\ud83c\udfe1 Gestione Homepage</div>
+          <div className="card-title" style={{ fontSize: '1.2rem' }}>Gestione Homepage</div>
           <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Modifica i contenuti della pagina pubblica</div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={goBack}>\u2190 Indietro</button>
+        <button className="btn btn-ghost btn-sm" onClick={goBack}>Indietro</button>
       </div>
       <div className="tabs" style={{ marginBottom: 24 }}>
         {[{ id:'numeri', label:'\ud83d\udd22 Numeri' },{ id:'avvisi', label:'\ud83d\udccb Avvisi' },{ id:'calendario', label:'\ud83d\udcc5 Appuntamenti' }].map(t => (
@@ -9215,7 +9215,7 @@ function AdminHomepage({ user, goBack }) {
       </div>
       {tab === 'numeri' && (
         <div>
-          <div className="alert alert-info" style={{ marginBottom: 20 }}>\ud83d\udca1 Questi 4 numeri appaiono nella sezione "L'oratorio in numeri" della homepage pubblica.</div>
+          <div className="alert alert-info" style={{ marginBottom: 20 }}> Questi 4 numeri appaiono nella sezione "L'oratorio in numeri" della homepage pubblica.</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 16, marginBottom: 24 }}>
             {numeri.map((n, i) => (
               <div key={n.id} className="card" style={{ borderTop: `3px solid ${n.color}`, paddingTop: 18 }}>
