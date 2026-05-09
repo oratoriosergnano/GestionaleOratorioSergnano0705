@@ -45,6 +45,19 @@ Deno.serve(async (req: any) => {
       const { data: admins } = await supabase.from('admins').select('email').eq('attivo', true);
       emailDestinatari = admins?.map(a => a.email).filter(Boolean) || [];
       pushQuery = pushQuery.eq('user_type', 'superadmin');
+    } else if (target_tipo === 'email_diretta' && target_ids && target_ids.length > 0) {
+      emailDestinatari = target_ids;
+      // Per le email dirette non cerchiamo push_subscriptions (a meno che non vogliamo inviare push anche lì)
+      pushQuery = pushQuery.in('user_id', target_ids);
+    } else if (target_tipo === 'genitore' && target_ids && target_ids.length > 0) {
+      // Cerca le email dei genitori corrispondenti ai target_ids (che possono essere codici accesso o ID utente)
+      const { data: genitori } = await supabase
+        .from('iscrizioni')
+        .select('email_genitore')
+        .or(`codice_accesso.in.(${target_ids.join(',')}),utente_id.in.(${target_ids.join(',')})`);
+      
+      emailDestinatari = genitori?.map(g => g.email_genitore).filter(Boolean) || [];
+      pushQuery = pushQuery.in('user_id', target_ids);
     }
 
     // --- 2. Invia notifiche PUSH ---
