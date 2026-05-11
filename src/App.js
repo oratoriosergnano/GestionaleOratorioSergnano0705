@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from './lib/supabase'
+import { authLock, authSync, monitorStorageIntegrity, cleanupCorruptedAuth } from './lib/authSync'
 import './styles.css'
 
 // ─── COSTANTI ─────────────────────────────────────────────────────────────────
@@ -548,10 +549,11 @@ export default function App() {
     window.location.reload()
   }
 
-  // ── Inizializzazione sessioni ─────────────────────────────────────
+  // ── Inizializzazione sessioni (CON THREAD-SAFETY) ────────────────────────────
   useEffect(() => {
     let isMounted = true
     let timeoutId = null
+    let cleanupMonitor = null
 
     const init = async () => {
       try {
@@ -564,41 +566,48 @@ export default function App() {
           }
         }, 10000)
 
-        // 1. Sessione Supabase Auth (Sistema Unificato)
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session?.user && isMounted) {
-          // Controlliamo prima se l'utente è un AMMINISTRATORE
-          const { data: adminProfile } = await supabase
-            .from('admins')
-            .select('*')
-            .eq('id', session.user.id)
-            .eq('attivo', true)
-            .maybeSingle()
+        // ✅ PROTEZIONE: Usa authLock per evitare race conditions
+        await authLock.acquire(async () => {
+          // 1. Sessione Supabase Auth (Sistema Unificato)
+          const { data: { session } } = await supabase.auth.getSession()
+          
+          if (session?.user && isMounted) {
+            // Controlliamo prima se l'utente è un AMMINISTRATORE
+            const { data: adminProfile } = await supabase
+              .from('admins')
+              .select('*')
+              .eq('id', session.user.id)
+              .eq('attivo', true)
+              .maybeSingle()
 
-          if (adminProfile) {
-            // È un admin autenticato
-            setCurrentUser(adminProfile)
-            setView({ type: 'admin' })
-          } else {
-            // È un utente genitore/pubblico
-            setAuthUser(session.user)
-            await caricaProfilo(session.user.id)
+            if (adminProfile) {
+              // È un admin autenticato
+              setCurrentUser(adminProfile)
+              setView({ type: 'admin' })
+            } else {
+              // È un utente genitore/pubblico
+              setAuthUser(session.user)
+              await caricaProfilo(session.user.id)
+            }
+          } else if (isMounted) {
+            // Nessuna sessione attiva
+            if (isAdminDomain) {
+              setView({ type: 'admin-login' })
+            } else {
+              const params = new URLSearchParams(window.location.search)
+              const resetToken = params.get('reset')
+              if (resetToken) setView({ type: 'genitore', resetToken })
+              const typeParam = params.get('type')
+              if (typeParam === 'recovery') setView({ type: 'area-personale' })
+            }
           }
-        } else if (isMounted) {
-          // Nessuna sessione attiva
-          if (isAdminDomain) {
-            setView({ type: 'admin-login' })
-          } else {
-            const params = new URLSearchParams(window.location.search)
-            const resetToken = params.get('reset')
-            if (resetToken) setView({ type: 'genitore', resetToken })
-            const typeParam = params.get('type')
-            if (typeParam === 'recovery') setView({ type: 'area-personale' })
-          }
-        }
+        })
       } catch (e) {
         console.error('Errore init app:', e)
+        // Se localStorage è corrotto, pulisci e ricarica
+        if (e.message?.includes('lock') || e.message?.includes('storage')) {
+          cleanupCorruptedAuth()
+        }
         if (isMounted) {
           setLoadingError('error')
         }
@@ -610,37 +619,55 @@ export default function App() {
     
     init()
     
+    // ✅ MONITOR: Monitora corruzione localStorage durante navigazione
+    cleanupMonitor = monitorStorageIntegrity()
+    
+    // ✅ SINCRONIZZAZIONE: Ascolta cambiamenti da altre tab
+    const unsubscribeAuthSync = authSync.subscribe((type, payload) => {
+      if (type === 'auth-change' && isMounted) {
+        console.log('Auth sincronizzato da altra tab:', type)
+      }
+    })
+    
     // Ascolta cambiamenti sessione Auth (Login/Logout in tempo reale)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return
       
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Verifica se l'utente loggato è un admin
-        const { data: adminProfile } = await supabase
-          .from('admins')
-          .select('*')
-          .eq('id', session.user.id)
-          .eq('attivo', true)
-          .maybeSingle()
+      // ✅ BROADCAST: Comunica alle altre tab
+      authSync.broadcast('auth-change', { event, session: session?.user?.id })
+      
+      // ✅ LOCK: Proteggi l'accesso concorrente
+      await authLock.acquire(async () => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Verifica se l'utente loggato è un admin
+          const { data: adminProfile } = await supabase
+            .from('admins')
+            .select('*')
+            .eq('id', session.user.id)
+            .eq('attivo', true)
+            .maybeSingle()
 
-        if (adminProfile) {
-          setCurrentUser(adminProfile)
-          setView({ type: 'admin' })
-        } else {
-          setAuthUser(session.user)
-          await caricaProfilo(session.user.id)
+          if (adminProfile) {
+            setCurrentUser(adminProfile)
+            setView({ type: 'admin' })
+          } else {
+            setAuthUser(session.user)
+            await caricaProfilo(session.user.id)
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null)
+          setAuthUser(null)
+          setProfilo(null)
+          setView({ type: 'home' })
         }
-      } else if (event === 'SIGNED_OUT') {
-        setCurrentUser(null)
-        setAuthUser(null)
-        setProfilo(null)
-        setView({ type: 'home' })
-      }
+      })
     })
 
     return () => {
       isMounted = false
       if (timeoutId) clearTimeout(timeoutId)
+      if (cleanupMonitor) cleanupMonitor()
+      unsubscribeAuthSync()
       subscription?.unsubscribe()
     }
   }, []) // eslint-disable-line
