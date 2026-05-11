@@ -1,46 +1,77 @@
-// src/lib/supabase.js — VERSIONE AGGIORNATA con Auth e Sincronizzazione
-// Gestione robusta delle race conditions e corruzione localStorage
+// src/lib/supabase.js — VERSIONE CON STORAGE MULTI-CONTESTO
+// Risolve conflitti tra tab admin e tab utente sullo stesso browser
 
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl  = process.env.REACT_APP_SUPABASE_URL
 const supabaseKey  = process.env.REACT_APP_SUPABASE_ANON_KEY
 
+// ✅ SOLUZIONE: Storage con namespace per evitare conflitti tra tab
+class NamespacedStorage {
+  constructor(prefix = 'oratorio') {
+    this.prefix = prefix
+    // Usa localStorage per persistenza, ma con namespace per separare contesti
+    this.storage = localStorage
+  }
+
+  getItem(key) {
+    return this.storage.getItem(`${this.prefix}:${key}`)
+  }
+
+  setItem(key, value) {
+    return this.storage.setItem(`${this.prefix}:${key}`, value)
+  }
+
+  removeItem(key) {
+    return this.storage.removeItem(`${this.prefix}:${key}`)
+  }
+
+  clear() {
+    // Pulisci solo le chiavi di questo namespace
+    const keys = Object.keys(this.storage).filter(k => k.startsWith(`${this.prefix}:`))
+    keys.forEach(k => this.storage.removeItem(k))
+  }
+}
+
+// ✅ ISOLAMENTO: Crea storage separati per admin e utente
+const adminStorage = new NamespacedStorage('oratorio:admin')
+const userStorage = new NamespacedStorage('oratorio:user')
+
+// Determina quale storage usare in base al contesto
+const getContextStorage = () => {
+  const path = window.location.pathname
+  const isAdmin = window.location.hostname.startsWith('admin.') || 
+                  path.includes('/admin') ||
+                  window.location.search.includes('admin=true')
+  return isAdmin ? adminStorage : userStorage
+}
+
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken:    true,
     persistSession:      true,
     detectSessionInUrl:  true,
-    storage:             localStorage,
+    storage:             getContextStorage(), // ✅ Storage dinamico basato sul contesto
     
-    // ✅ MIGLIORAMENTO: Gestione migliore dei lock
-    // Usa timeout più alto e retry automatico
+    // ✅ Gestione migliore dei lock con retry
     storageOptions: {
-      // Non disabilitare il lock — piuttosto usa retry con backoff
       retry: {
         count: 3,
-        delay: (attempt) => Math.pow(2, attempt) * 100, // Backoff esponenziale: 100ms, 200ms, 400ms
+        delay: (attempt) => Math.pow(2, attempt) * 100,
       }
     },
   },
 })
 
-// ✅ PREVENZIONE: Interceptor per errori di lock
+// ✅ PREVENZIONE: Monitora e ripulisce storage corrotto
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'STORAGE_ERROR') {
-    console.error('Errore storage auth — localStorage potrebbe essere corrotto')
-    // Pulisci e forza refresh
+    console.error('Errore storage auth')
+    const storage = getContextStorage()
     try {
-      // Identifica quali chiavi sono corrotte
-      const keys = Object.keys(localStorage).filter(k => k.startsWith('sb-'))
-      keys.forEach(k => {
-        try {
-          JSON.parse(localStorage.getItem(k))
-        } catch (e) {
-          console.warn(`Rimuovendo chiave corrotta: ${k}`)
-          localStorage.removeItem(k)
-        }
-      })
+      // Pulisci solo il namespace corrente, non tutto
+      storage.clear()
+      window.location.reload()
     } catch (e) {
       console.error('Errore nel cleanup:', e)
     }
