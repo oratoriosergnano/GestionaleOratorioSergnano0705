@@ -84,32 +84,6 @@ const aggiornaRuoliCustomLS = async () => {
 const fmt   = (n) => `€${Number(n || 0).toFixed(2)}`
 const today = () => new Date().toISOString().split('T')[0]
 const uid   = () => crypto.randomUUID()
-
-// --- HELPERS CALENDARIO ---
-const generaGoogleCalendarLink = ({ titolo, inizio, fine, descrizione, luogo }) => {
-  const fmt = (d) => d.replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const url = new URL('https://calendar.google.com/calendar/render')
-  url.searchParams.append('action', 'TEMPLATE')
-  url.searchParams.append('text', titolo)
-  url.searchParams.append('dates', `${fmt(inizio)}/${fmt(fine)}`)
-  url.searchParams.append('details', descrizione || '')
-  url.searchParams.append('location', luogo || 'Oratorio di Sergnano')
-  return url.toString()
-}
-
-const generaICalFile = ({ titolo, inizio, fine, descrizione, luogo }) => {
-  const fmt = (d) => d.replace(/[-:]/g, '').split('.')[0] + 'Z'
-  const ical = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Oratorio Sergnano//IT',
-    'BEGIN:VEVENT',
-    `DTSTART:${fmt(inizio)}`, `DTEND:${fmt(fine)}`,
-    `SUMMARY:${titolo}`, `DESCRIPTION:${descrizione || ''}`, `LOCATION:${luogo || 'Oratorio di Sergnano'}`,
-    'END:VEVENT', 'END:VCALENDAR'
-  ].join('\r\n')
-  const blob = new Blob([ical], { type: 'text/calendar;charset=utf-8' })
-  return URL.createObjectURL(blob)
-}
-
 // Codice accesso genitore: 8 caratteri leggibili (no 0/O/1/I per evitare confusione)
 const genCodice = () => {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -347,35 +321,6 @@ function EditorCampiExtra({ campi, onChange }) {
         {TIPI_CAMPO.map(t => (
           <button key={t.id} className="btn btn-sm btn-ghost" onClick={() => aggiungi(t)}>{t.label}</button>
         ))}
-      </div>
-    </div>
-  )
-}
-
-// Componente per visualizzare i dati extra in un modal (usato in vari componenti admin)
-function DatiExtraViewModal({ titolo, dati, campi, onClose }) {
-  return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth: 500 }}>
-        <div className="modal-title">📋 {titolo || 'Dati aggiuntivi'}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-          {campi.map(c => (
-            <div key={c.id} style={{ background: 'var(--bg)', borderRadius: 10, padding: '10px 14px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 4 }}>{c.label}</div>
-              <div style={{ fontWeight: 600, fontSize: '.95rem' }}>
-                {String((dati || {})[c.id] ?? '—')}
-              </div>
-            </div>
-          ))}
-          {campi.length === 0 && (
-            <div style={{ gridColumn: 'span 2', textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>
-              Nessun campo extra configurato per questo modulo.
-            </div>
-          )}
-        </div>
-        <div className="modal-footer">
-          <button className="btn btn-primary" onClick={onClose}>Chiudi</button>
-        </div>
       </div>
     </div>
   )
@@ -655,7 +600,7 @@ export default function App() {
       } catch (e) {
         console.error('Errore init app:', e)
         if (isMounted) {
-          setLoadingError(e.message || 'error')
+          setLoadingError('error')
         }
       } finally {
         if (timeoutId) clearTimeout(timeoutId)
@@ -822,18 +767,8 @@ export default function App() {
         <div style={{ fontSize: '3rem', marginBottom: 20 }}>⚠️</div>
         <h2 style={{ color: '#E25B45', marginBottom: 12 }}>Qualcosa è andato storto</h2>
         <p style={{ color: '#666', marginBottom: 30, lineHeight: 1.6 }}>
-          Si è verificato un problema durante il caricamento. Questo di solito succede se i dati di navigazione sono corrotti o se c'è un problema di connessione.
+          Si è verificato un problema durante il caricamento. Questo di solito succede se i dati di navigazione sono corrotti.
         </p>
-        {loadingError && loadingError !== 'timeout' && (
-          <div style={{ background: '#fef2f2', color: '#991b1b', padding: '12px', borderRadius: 8, marginBottom: 20, fontSize: '0.85rem', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-            Errore: {loadingError}
-          </div>
-        )}
-        {loadingError === 'timeout' && (
-          <div style={{ background: '#fffbeb', color: '#92400e', padding: '12px', borderRadius: 8, marginBottom: 20, fontSize: '0.85rem' }}>
-            ⏳ Il caricamento sta impiegando troppo tempo. Controlla la tua connessione.
-          </div>
-        )}
         <button 
           onClick={resetApp}
           style={{
@@ -1003,7 +938,6 @@ function HomePage({ goPublic, onAdminClick, authUser, profilo, onLoginClick, onR
   const [numeri, setNumeri] = useState([])
   const [avvisi, setAvvisi] = useState([])
   const [appuntamenti, setAppuntamenti] = useState([])
-  const [hasFeste, setHasFeste] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -1013,27 +947,23 @@ function HomePage({ goPublic, onAdminClick, authUser, profilo, onLoginClick, onR
           { data: ev, error: errEv },
           { data: num, error: errNum },
           { data: avv, error: errAvv },
-          { data: cal, error: errCal },
-          { data: fst, error: errFst }
+          { data: cal, error: errCal }
         ] = await Promise.all([
           supabase.from('eventi').select('id,nome,data_inizio,data_fine').eq('attivo', true).order('created_at', { ascending: true }),
           supabase.from('configurazioni').select('valore').eq('id','homepage_numeri').maybeSingle(),
           supabase.from('avvisi_pubblici').select('*').eq('attivo', true).order('created_at', { ascending: false }),
-          supabase.from('calendario_homepage').select('*').order('data', { ascending: true }),
-          supabase.from('feste').select('id').eq('attivo', true).limit(1)
+          supabase.from('calendario_homepage').select('*').order('data', { ascending: true })
         ])
 
         if (errEv) console.error('Errore eventi:', errEv)
         if (errNum) console.error('Errore numeri:', errNum)
         if (errAvv) console.error('Errore avvisi:', errAvv)
         if (errCal) console.error('Errore calendario:', errCal)
-        if (errFst) console.error('Errore feste:', errFst)
 
         setEventi(ev || [])
         setNumeri(num?.valore?.numeri || [])
         setAvvisi(avv || [])
         setAppuntamenti(cal || [])
-        setHasFeste((fst || []).length > 0)
       } catch (e) {
         console.error('Errore caricamento homepage:', e)
       } finally {
@@ -1046,10 +976,10 @@ function HomePage({ goPublic, onAdminClick, authUser, profilo, onLoginClick, onR
   const spazi = [
     { icon: '⚽', label: 'Campetto',     type: 'campetto',     desc: 'Campo da gioco all\'aperto',  grad: 'linear-gradient(135deg,#fde8b0 0%,#fac172 100%)', accent: '#c8860a' },
     { icon: '🎉', label: 'Sala Feste',   type: 'sala',         desc: 'Per eventi e ricorrenze',     grad: 'linear-gradient(135deg,#d4f3ee 0%,#89d5c9 100%)', accent: '#1a7a72' },
-    { icon: '🍽️', label: 'Tavoli Feste', type: 'tavoli',       desc: 'Area feste e sagre',          grad: 'linear-gradient(135deg,#ffe8d0 0%,#e67e22 100%)', accent: '#a05010', hidden: !hasFeste },
+    { icon: '🍽️', label: 'Tavoli Feste', type: 'tavoli',       desc: 'Area feste e sagre',          grad: 'linear-gradient(135deg,#ffe8d0 0%,#e67e22 100%)', accent: '#a05010' },
     { icon: '🏠', label: 'Appartamento', type: 'appartamento', desc: 'Pernottamento e soggiorni',   grad: 'linear-gradient(135deg,#ffe0d0 0%,#ff8357 100%)', accent: '#c04020' },
     { icon: '🏫', label: 'Aule',         type: 'aule',         desc: 'Laboratori e incontri',       grad: 'linear-gradient(135deg,#e4f3c8 0%,#adc865 100%)', accent: '#4a6c0f' },
-  ].filter(s => !s.hidden)
+  ]
 
   return (
     <div style={{ minHeight: '100vh', background: '#f5f2ee', fontFamily: "'Outfit', sans-serif" }}>
@@ -3922,26 +3852,6 @@ ${resetLink}`
             📋 Dati extra — {dettaglio.nome_bambino} {dettaglio.cognome_bambino}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div style={{ background: '#fff', borderRadius: 8, padding: '8px 12px' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>Comune Residenza</div>
-              <div style={{ fontWeight: 600 }}>{dettaglio.comune_residenza || '—'}</div>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 8, padding: '8px 12px' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>Sconto Fratello</div>
-              <div style={{ fontWeight: 600 }}>{dettaglio.is_fratello ? 'Sì' : 'No'}</div>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 8, padding: '8px 12px', gridColumn: 'span 2' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>Note</div>
-              <div style={{ fontWeight: 600 }}>{dettaglio.note || '—'}</div>
-            </div>
-            <div style={{ background: '#fff', borderRadius: 8, padding: '8px 12px', gridColumn: 'span 2' }}>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>Consensi</div>
-              <div style={{ fontSize: '.8rem' }}>
-                Privacy: {dettaglio.consenso_privacy ? '✅' : '❌'} | 
-                Foto: {dettaglio.consenso_foto ? '✅' : '❌'} | 
-                Regolamento: {dettaglio.consenso_regolamento ? '✅' : '❌'}
-              </div>
-            </div>
             {campiExtra.map(c => (
               <div key={c.id} style={{ background: '#fff', borderRadius: 8, padding: '8px 12px' }}>
                 <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>{c.label}</div>
@@ -5628,15 +5538,6 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
       corpo:  `${dati.nome_bambino} ${dati.cognome_bambino} si è iscritto/a a "${evento.nome}"`,
       target_tipo: 'superadmin',
     })
-    // Notifica di conferma al genitore
-    if (dati.email_genitore) {
-      sendPushNotification({
-        titolo: `✅ Conferma iscrizione: ${evento.nome}`,
-        corpo:  `Ciao ${dati.nome_genitore}, l'iscrizione di ${dati.nome_bambino} all'evento "${evento.nome}" è stata ricevuta correttamente. Totale da versare: ${fmt(dati.totale)}.`,
-        target_tipo: 'email_diretta',
-        target_ids: [dati.email_genitore]
-      })
-    }
     setSaving(false); setSuccess(true)
   }
 
@@ -6345,25 +6246,6 @@ function PrenotazioneCard({ p, passata }) {
           €{Number(p.prezzo).toFixed(2)}
         </div>
       )}
-      {!passata && (
-        <div style={{ display:'flex', gap:6, marginLeft:10 }}>
-          <button className="btn btn-sm btn-ghost" title="Aggiungi a Google Calendar"
-            onClick={() => {
-              const d = p.data || p.arrivo
-              const inizio = new Date(`${d}T${p.ora || '09:00'}:00`).toISOString()
-              const fine = new Date(new Date(inizio).getTime() + (p.durata?.includes('1.5') ? 90 : 60) * 60000).toISOString()
-              window.open(generaGoogleCalendarLink({ titolo: p.label, inizio, fine, luogo: p.tipo === 'aule' ? p.aula : p.label }), '_blank')
-            }}>🗓️ G</button>
-          <button className="btn btn-sm btn-ghost" title="Scarica file iCal"
-            onClick={() => {
-              const d = p.data || p.arrivo
-              const inizio = new Date(`${d}T${p.ora || '09:00'}:00`).toISOString()
-              const fine = new Date(new Date(inizio).getTime() + (p.durata?.includes('1.5') ? 90 : 60) * 60000).toISOString()
-              const url = generaICalFile({ titolo: p.label, inizio, fine, luogo: p.tipo === 'aule' ? p.aula : p.label })
-              const a = document.createElement('a'); a.href = url; a.download = 'evento.ics'; a.click()
-            }}>📅 i</button>
-        </div>
-      )}
     </div>
   )
 }
@@ -6666,23 +6548,6 @@ function IscrizioneCardEstesa({ i, goTo, dati }) {
             <div style={{ fontSize:'.85rem', fontWeight:600 }}>
               👦 {i.nome_bambino} {i.cognome_bambino}
             </div>
-            <div style={{ display:'flex', gap:6, marginTop:8 }}>
-              <button className="btn btn-sm btn-ghost" title="Aggiungi a Google Calendar"
-                style={{ padding: '2px 8px', fontSize: '.7rem' }}
-                onClick={() => {
-                  const inizio = new Date(`${ev.data_inizio}T09:00:00`).toISOString()
-                  const fine = new Date(`${ev.data_fine}T17:00:00`).toISOString()
-                  window.open(generaGoogleCalendarLink({ titolo: `🎪 ${ev.nome}: ${i.nome_bambino}`, inizio, fine, descrizione: `Iscrizione a ${ev.nome}` }), '_blank')
-                }}>🗓️ Google</button>
-              <button className="btn btn-sm btn-ghost" title="Scarica file iCal"
-                style={{ padding: '2px 8px', fontSize: '.7rem' }}
-                onClick={() => {
-                  const inizio = new Date(`${ev.data_inizio}T09:00:00`).toISOString()
-                  const fine = new Date(`${ev.data_fine}T17:00:00`).toISOString()
-                  const url = generaICalFile({ titolo: `🎪 ${ev.nome}: ${i.nome_bambino}`, inizio, fine, descrizione: `Iscrizione a ${ev.nome}` })
-                  const a = document.createElement('a'); a.href = url; a.download = 'iscrizione.ics'; a.click()
-                }}>📅 iCal</button>
-            </div>
           </div>
           <div style={{ textAlign:'right', display:'flex', flexDirection:'column', gap:6, alignItems:'flex-end' }}>
             <div style={{ fontWeight:900, color:'var(--primary)', fontSize:'1.1rem' }}>
@@ -6834,7 +6699,6 @@ function AdminCampetto({ user, goPublic, goBack }) {
   const [prezzi, setPrezzi] = useState({})
   const [campiTemp, setCampiTemp] = useState({ _campi: [], _metodi: ['Contanti','POS/Carta','Bonifico'] })
   const [noteModal, setNoteModal] = useState(null)
-  const [extraModal, setExtraModal] = useState(null)
   const canEdit = canManage(user.ruolo, 'campetto')
 
   useEffect(() => {
@@ -6890,29 +6754,6 @@ function AdminCampetto({ user, goPublic, goBack }) {
                       )}
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="btn btn-sm btn-ghost"
-                          title="Visualizza tutte le risposte"
-                          onClick={() => setExtraModal({ titolo: `Risposte di ${p.nome}`, dati: p.dati_extra, campi: config?.campi_extra || [] })}>
-                          👁
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
-                          title="Aggiungi al mio calendario"
-                          onClick={() => {
-                            const inizio = new Date(`${p.data}T09:00:00`).toISOString()
-                            const fine = new Date(`${p.data}T17:00:00`).toISOString()
-                            window.open(generaGoogleCalendarLink({ titolo: `🎉 Sala Feste: ${p.nome}`, inizio, fine, luogo: 'Sala Feste' }), '_blank')
-                          }}>
-                          📅
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
-                          title="Aggiungi al mio calendario"
-                          onClick={() => {
-                            const inizio = new Date(`${p.data}T${p.ora || '09:00'}:00`).toISOString()
-                            const fine = new Date(new Date(inizio).getTime() + (p.durata?.includes('1.5') ? 90 : 60) * 60000).toISOString()
-                            window.open(generaGoogleCalendarLink({ titolo: `⚽ Campetto: ${p.nome}`, inizio, fine, luogo: 'Campetto' }), '_blank')
-                          }}>
-                          📅
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
                           title={p.note_admin ? 'Modifica nota' : 'Aggiungi nota'}
                           onClick={() => setNoteModal({ tabella: 'prenotazioni_campetto', prenotazione: p })}
                           style={{ color: p.note_admin ? '#8e44ad' : undefined,
@@ -6934,14 +6775,6 @@ function AdminCampetto({ user, goPublic, goBack }) {
         </div>
       )}
       {tab === 'calendario' && <Calendario prenotazioni={prenotazioni} />}
-      {extraModal && (
-        <DatiExtraViewModal
-          titolo={extraModal.titolo}
-          dati={extraModal.dati}
-          campi={extraModal.campi}
-          onClose={() => setExtraModal(null)}
-        />
-      )}
       {noteModal && <NoteModal tabella={noteModal.tabella} prenotazione={noteModal.prenotazione} user={user} onClose={() => { setNoteModal(null); reload() }} />}
       {editPrice && config && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditPrice(false)}>
@@ -7206,14 +7039,6 @@ function PubCampettoForm({ onBack, authUser, profilo }) {
       corpo:  `${form.nome} ha prenotato il campetto per il ${form.data} alle ${form.ora}`,
       target_tipo: 'superadmin',
     })
-    if (form.email) {
-      sendPushNotification({
-        titolo: '✅ Conferma prenotazione campetto',
-        corpo: `Ciao ${form.nome}, la tua prenotazione per il campetto del ${form.data} alle ${form.ora} è confermata. Prezzo: ${fmt(calcPrezzo())}.`,
-        target_tipo: 'email_diretta',
-        target_ids: [form.email]
-      })
-    }
     setSaving(false); setSuccess(true)
   }
 
@@ -7338,7 +7163,6 @@ function AdminSala({ user, goPublic, goBack }) {
   const [prezzi, setPrezzi] = useState({})
   const [campiTemp, setCampiTemp] = useState({ _campi: [], _metodi: ['Contanti','POS/Carta','Bonifico'] })
   const [noteModal, setNoteModal] = useState(null)
-  const [extraModal, setExtraModal] = useState(null)
   const canEdit = canManage(user.ruolo, 'sala')
 
   useEffect(() => {
@@ -7385,20 +7209,6 @@ function AdminSala({ user, goPublic, goBack }) {
                       )}
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="btn btn-sm btn-ghost"
-                          title="Visualizza tutte le risposte"
-                          onClick={() => setExtraModal({ titolo: `Risposte di ${p.nome}`, dati: p.dati_extra, campi: config?.campi_extra || [] })}>
-                          👁
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
-                          title="Aggiungi al mio calendario"
-                          onClick={() => {
-                            const inizio = new Date(`${p.data}T09:00:00`).toISOString()
-                            const fine = new Date(`${p.data}T17:00:00`).toISOString()
-                            window.open(generaGoogleCalendarLink({ titolo: `🎉 Sala Feste: ${p.nome}`, inizio, fine, luogo: 'Sala Feste' }), '_blank')
-                          }}>
-                          📅
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
                           title={p.note_admin ? 'Modifica nota' : 'Aggiungi nota'}
                           onClick={() => setNoteModal({ tabella: 'prenotazioni_sala', prenotazione: p })}
                           style={{ color: p.note_admin ? '#8e44ad' : undefined,
@@ -7420,14 +7230,6 @@ function AdminSala({ user, goPublic, goBack }) {
         </div>
       )}
       {tab === 'calendario' && <Calendario prenotazioni={prenotazioni} />}
-      {extraModal && (
-        <DatiExtraViewModal
-          titolo={extraModal.titolo}
-          dati={extraModal.dati}
-          campi={extraModal.campi}
-          onClose={() => setExtraModal(null)}
-        />
-      )}
       {noteModal && <NoteModal tabella={noteModal.tabella} prenotazione={noteModal.prenotazione} user={user} onClose={() => { setNoteModal(null); reload() }} />}
       {editPrice && config && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditPrice(false)}>
@@ -7537,14 +7339,6 @@ function PubSalaForm({ onBack, authUser, profilo }) {
       corpo:  `${form.nome} ha prenotato la sala per il ${form.data}`,
       target_tipo: 'superadmin',
     })
-    if (form.email) {
-      sendPushNotification({
-        titolo: '✅ Conferma prenotazione sala feste',
-        corpo: `Ciao ${form.nome}, la tua richiesta per la sala feste del ${form.data} è stata ricevuta. Ti contatteremo per la conferma definitiva. Prezzo stimato: ${fmt(calcPrezzo())}.`,
-        target_tipo: 'email_diretta',
-        target_ids: [form.email]
-      })
-    }
     setSaving(false); setSuccess(true)
   }
 
@@ -7652,7 +7446,6 @@ function AdminAppartamento({ user, goPublic, goBack }) {
   const [editCampi, setEditCampi] = useState(false)
   const [campiTemp, setCampiTemp] = useState([])
   const [noteModal, setNoteModal] = useState(null)
-  const [extraModal, setExtraModal] = useState(null)
   const canEdit = canManage(user.ruolo, 'appartamento')
 
   useEffect(() => {
@@ -7703,11 +7496,6 @@ function AdminAppartamento({ user, goPublic, goBack }) {
                       )}
                       <div style={{ display: 'flex', gap: 4 }}>
                         <button className="btn btn-sm btn-ghost"
-                          title="Visualizza tutte le risposte"
-                          onClick={() => setExtraModal({ titolo: `Risposte di ${p.nome_gruppo}`, dati: p.dati_extra, campi: campiExtra })}>
-                          👁
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
                           title={p.note_admin ? 'Modifica nota' : 'Aggiungi nota'}
                           onClick={() => setNoteModal({ tabella: 'prenotazioni_appartamento', prenotazione: p })}
                           style={{ color: p.note_admin ? '#8e44ad' : undefined,
@@ -7729,14 +7517,6 @@ function AdminAppartamento({ user, goPublic, goBack }) {
         </div>
       )}
       {tab === 'calendario' && <Calendario prenotazioni={prenotazioni.map(p => ({ ...p, data: p.arrivo }))} />}
-      {extraModal && (
-        <DatiExtraViewModal
-          titolo={extraModal.titolo}
-          dati={extraModal.dati}
-          campi={campiExtra}
-          onClose={() => setExtraModal(null)}
-        />
-      )}
       {noteModal && <NoteModal tabella={noteModal.tabella} prenotazione={noteModal.prenotazione} user={user} onClose={() => { setNoteModal(null); reload() }} />}
       {editCampi && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditCampi(false)}>
@@ -7815,14 +7595,6 @@ function PubAppartamentoForm({ onBack, authUser, profilo }) {
       corpo:  `${form.referente} (${form.nome_gruppo}) ha richiesto l'appartamento dal ${form.arrivo} al ${form.partenza}`,
       target_tipo: 'superadmin',
     })
-    if (form.email) {
-      sendPushNotification({
-        titolo: '✅ Conferma richiesta appartamento',
-        corpo: `Ciao ${form.referente}, abbiamo ricevuto la tua richiesta per l'appartamento dal ${form.arrivo} al ${form.partenza} per il gruppo ${form.nome_gruppo}. Ti risponderemo a breve.`,
-        target_tipo: 'email_diretta',
-        target_ids: [form.email]
-      })
-    }
     setSaving(false); setSuccess(true)
   }
 
@@ -7900,7 +7672,6 @@ function AdminAule({ user, goPublic, goBack }) {
   const [configTemp, setConfigTemp] = useState({ aule: [], campi_extra: [] })
   const [filterAula, setFilterAula] = useState('tutte')
   const [noteModal, setNoteModal] = useState(null)
-  const [extraModal, setExtraModal] = useState(null)
   const canEdit = canManage(user.ruolo, 'aule') || user.ruolo === 'superadmin'
 
   useEffect(() => {
@@ -8008,14 +7779,8 @@ function AdminAule({ user, goPublic, goBack }) {
                           📝 {p.note_admin}
                         </div>
                       )}
-                      <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
-                        <button className="btn btn-sm btn-ghost"
-                          title="Visualizza tutte le risposte"
-                          onClick={() => setExtraModal({ titolo: `Risposte di ${p.chi}`, dati: p.dati_extra, campi: config?.campi_extra || [] })}>
-                          👁
-                        </button>
-                        <button className="btn btn-sm btn-ghost"
-                          title={p.note_admin ? 'Modifica nota' : 'Aggiungi nota'}
+                      <button className="btn btn-sm btn-ghost"
+                        title={p.note_admin ? 'Modifica nota' : 'Aggiungi nota'}
                         onClick={() => setNoteModal({ tabella: 'prenotazioni_aule', prenotazione: p })}
                         style={{ color: p.note_admin ? '#8e44ad' : undefined,
                           borderColor: p.note_admin ? '#8e44ad' : undefined }}>
@@ -8030,7 +7795,6 @@ function AdminAule({ user, goPublic, goBack }) {
                         reload()
                           }
                         }}>🗑️</button>
-                      </div>
                       </td>
                     </tr>
                   )
@@ -8040,14 +7804,7 @@ function AdminAule({ user, goPublic, goBack }) {
         </div>
       )}
       {tab === 'calendario' && <Calendario prenotazioni={filtrate} />}
-      {extraModal && (
-        <DatiExtraViewModal
-          titolo={extraModal.titolo}
-          dati={extraModal.dati}
-          campi={extraModal.campi}
-          onClose={() => setExtraModal(null)}
-        />
-      )}
+
       {noteModal && <NoteModal tabella={noteModal.tabella} prenotazione={noteModal.prenotazione} user={user} onClose={() => { setNoteModal(null); reload() }} />}
       {/* Modal configurazione aule */}
       {editConfig && (
@@ -8164,14 +7921,6 @@ function PubAuleForm({ onBack, authUser, profilo }) {
       corpo:  `${form.chi} ha prenotato l'aula "${form.aula}" per il ${form.data} ${form.ora_inizio}-${form.ora_fine}`,
       target_tipo: 'superadmin',
     })
-    if (form.email) {
-      sendPushNotification({
-        titolo: '✅ Conferma prenotazione aula',
-        corpo: `Ciao ${form.chi}, la tua prenotazione per l'aula "${form.aula}" del ${form.data} (${form.ora_inizio}-${form.ora_fine}) è stata registrata.`,
-        target_tipo: 'email_diretta',
-        target_ids: [form.email]
-      })
-    }
     setSaving(false); setSuccess(true)
   }
 
@@ -9452,12 +9201,12 @@ function AdminHomepage({ user, goBack }) {
 
   return (
     <div className="content">
-      <button className="btn btn-ghost btn-sm" style={{ marginBottom: 16 }} onClick={goBack}>← Dashboard</button>
       <div className="card-header" style={{ marginBottom: 20 }}>
         <div>
           <div className="card-title" style={{ fontSize: '1.2rem' }}>Gestione Homepage</div>
           <div style={{ fontSize: '.82rem', color: 'var(--text-muted)', marginTop: 4 }}>Modifica i contenuti della pagina pubblica</div>
         </div>
+        <button className="btn btn-ghost btn-sm" onClick={goBack}>Indietro</button>
       </div>
       <div className="tabs" style={{ marginBottom: 24 }}>
         {[{ id:'numeri', label:'\ud83d\udd22 Numeri' },{ id:'avvisi', label:'\ud83d\udccb Avvisi' },{ id:'calendario', label:'\ud83d\udcc5 Appuntamenti' }].map(t => (
@@ -9622,7 +9371,6 @@ function AdminFeste({ user, goPublic, goBack }) {
   const [modalFesta, setModalFesta] = useState(null)
   const [filterFesta, setFilterFesta] = useState('tutte')
   const [noteModal, setNoteModal] = useState(null)
-  const [extraModal, setExtraModal] = useState(null)
 
   const salvaFesta = async (festa) => {
     const { error } = await supabase.from('feste').upsert(festa)
@@ -9708,12 +9456,7 @@ function AdminFeste({ user, goPublic, goBack }) {
                     <td><small>{festa?.nome || '—'}</small></td>
                     <td>
                       <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="btn btn-sm btn-ghost"
-                            title="Visualizza tutte le risposte"
-                            onClick={() => setExtraModal({ titolo: `Risposte di ${p.nome}`, dati: p.dati_extra, campi: (feste.find(f => f.id === p.festa_id)?.valore?.campi_extra || []) })}>
-                            👁
-                          </button>
-                          <button className="btn btn-sm btn-ghost" onClick={() => setNoteModal({ tabella: 'prenotazioni_tavoli', prenotazione: p })}>📝</button>
+                        <button className="btn btn-sm btn-ghost" onClick={() => setNoteModal({ tabella: 'prenotazioni_tavoli', prenotazione: p })}>📝</button>
                         <button className="btn btn-sm btn-danger" onClick={async () => { if (window.confirm('Eliminare?')) { await supabase.from('prenotazioni_tavoli').delete().eq('id', p.id); reloadPren() } }}>🗑️</button>
                       </div>
                     </td>
@@ -9727,14 +9470,6 @@ function AdminFeste({ user, goPublic, goBack }) {
 
       {tab === 'calendario' && <Calendario prenotazioni={filtrate} />}
       {noteModal && <NoteModal tabella={noteModal.tabella} prenotazione={noteModal.prenotazione} user={user} onClose={() => { setNoteModal(null); reloadPren() }} />}
-      {extraModal && (
-        <DatiExtraViewModal
-          titolo={extraModal.titolo}
-          dati={extraModal.dati}
-          campi={extraModal.campi}
-          onClose={() => setExtraModal(null)}
-        />
-      )}
       
       {modalFesta && (
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModalFesta(null)}>
@@ -10601,7 +10336,6 @@ function AdminSettings({ user, goBack }) {
 function AdminEconomia({ user, goBack }) {
   const [tab, setTab] = useState('dashboard')
   const [movimenti, setMovimenti] = useState([])
-  const [movimentiAnno, setMovimentiAnno] = useState([])
   const [categorie, setCategorie] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -10609,7 +10343,6 @@ function AdminEconomia({ user, goBack }) {
   
   // Filtri
   const [filtroMese, setFiltroMese] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
-  const [filtroAnno, setFiltroAnno] = useState(new Date().getFullYear().toString())
   const [filtroTipo, setFiltroTipo] = useState('tutti')
 
   const caricaDati = useCallback(async () => {
@@ -10618,33 +10351,29 @@ function AdminEconomia({ user, goBack }) {
       const { data: cat } = await supabase.from('economia_categorie').select('*').eq('attivo', true)
       setCategorie(cat || [])
 
-      // Carica movimenti per il mese selezionato (per Dashboard e Registro)
       let query = supabase.from('economia_movimenti').select('*, economia_categorie(*)').order('data', { ascending: false })
+      
       if (filtroMese) {
-        const firstDay = `${filtroMese}-01`
         const [year, month] = filtroMese.split('-')
+        const firstDay = `${filtroMese}-01`
+        // Calcola l'ultimo giorno del mese in modo dinamico
         const lastDayDate = new Date(parseInt(year), parseInt(month), 0)
         const lastDay = `${filtroMese}-${String(lastDayDate.getDate()).padStart(2, '0')}`
         query = query.gte('data', firstDay).lte('data', lastDay)
       }
-      if (filtroTipo !== 'tutti') query = query.eq('tipo', filtroTipo)
+      
+      if (filtroTipo !== 'tutti') {
+        query = query.eq('tipo', filtroTipo)
+      }
+
       const { data: mov } = await query
       setMovimenti(mov || [])
-
-      // Carica movimenti per l'intero anno selezionato (per Report Annuale)
-      const { data: movAnno } = await supabase.from('economia_movimenti')
-        .select('*, economia_categorie(*)')
-        .gte('data', `${filtroAnno}-01-01`)
-        .lte('data', `${filtroAnno}-12-31`)
-        .order('data', { ascending: true })
-      setMovimentiAnno(movAnno || [])
-
     } catch (e) {
       console.error(e)
     } finally {
       setLoading(false)
     }
-  }, [filtroMese, filtroTipo, filtroAnno])
+  }, [filtroMese, filtroTipo])
 
   useEffect(() => { caricaDati() }, [caricaDati])
 
@@ -10696,7 +10425,6 @@ function AdminEconomia({ user, goBack }) {
 
   return (
     <div className="admin-economia">
-      <button className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }} onClick={goBack}>← Dashboard</button>
       <div className="tabs">
         <button className={`tab ${tab === 'dashboard' ? 'active' : ''}`} onClick={() => setTab('dashboard')}>📊 Dashboard</button>
         <button className={`tab ${tab === 'registro' ? 'active' : ''}`} onClick={() => setTab('registro')}>📝 Registro Movimenti</button>
@@ -10807,101 +10535,10 @@ function AdminEconomia({ user, goBack }) {
       )}
 
       {tab === 'report' && (
-        <div className="fade-in">
-          <div className="card" style={{ marginBottom: 20 }}>
-            <div className="card-header">
-              <h3 className="card-title">Andamento Annuale {filtroAnno}</h3>
-              <select className="form-select" style={{ width: 100 }} value={filtroAnno} onChange={e => setFiltroAnno(e.target.value)}>
-                {[...Array(5)].map((_, i) => {
-                  const y = new Date().getFullYear() - i
-                  return <option key={y} value={y}>{y}</option>
-                })}
-              </select>
-            </div>
-            
-            <div style={{ padding: '20px 10px' }}>
-              {/* Semplice grafico a barre CSS */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 200, paddingBottom: 30, borderBottom: '2px solid var(--border)', position: 'relative' }}>
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const m = i + 1
-                  const mStr = String(m).padStart(2, '0')
-                  const movMese = movimentiAnno.filter(x => x.data.startsWith(`${filtroAnno}-${mStr}`))
-                  const ent = movMese.filter(x => x.tipo === 'entrata').reduce((s, x) => s + x.importo, 0)
-                  const usc = movMese.filter(x => x.tipo === 'uscita').reduce((s, x) => s + x.importo, 0)
-                  
-                  const maxVal = Math.max(...Array.from({ length: 12 }).map((_, j) => {
-                    const ms = String(j+1).padStart(2, '0')
-                    const mm = movimentiAnno.filter(x => x.data.startsWith(`${filtroAnno}-${ms}`))
-                    return Math.max(
-                      mm.filter(x => x.tipo === 'entrata').reduce((s, x) => s + x.importo, 0),
-                      mm.filter(x => x.tipo === 'uscita').reduce((s, x) => s + x.importo, 0)
-                    )
-                  }), 100)
-
-                  const hEnt = (ent / maxVal) * 100
-                  const hUsc = (usc / maxVal) * 100
-
-                  return (
-                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, position: 'relative' }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, width: '100%', height: '100%' }}>
-                        <div title={`Entrate: ${fmt(ent)}`} style={{ flex: 1, background: 'var(--green)', height: `${hEnt}%`, borderRadius: '3px 3px 0 0', minHeight: ent > 0 ? 2 : 0 }}></div>
-                        <div title={`Uscite: ${fmt(usc)}`} style={{ flex: 1, background: 'var(--danger)', height: `${hUsc}%`, borderRadius: '3px 3px 0 0', minHeight: usc > 0 ? 2 : 0 }}></div>
-                      </div>
-                      <div style={{ position: 'absolute', bottom: -25, fontSize: '.7rem', color: 'var(--text-muted)', fontWeight: 700 }}>
-                        {new Date(2000, i, 1).toLocaleDateString('it', { month: 'short' }).toUpperCase()}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 20, marginTop: 15 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem' }}>
-                  <span style={{ width: 12, height: 12, background: 'var(--green)', borderRadius: 3 }} /> Entrate
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem' }}>
-                  <span style={{ width: 12, height: 12, background: 'var(--danger)', borderRadius: 3 }} /> Uscite
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid-2">
-            <div className="card">
-              <div className="card-header"><h3 className="card-title">Riepilogo Annuale {filtroAnno}</h3></div>
-              <div style={{ padding: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--border-light)' }}>
-                  <span>Totale Entrate</span>
-                  <span style={{ fontWeight: 800, color: 'var(--green)' }}>{fmt(movimentiAnno.filter(m => m.tipo === 'entrata').reduce((s, m) => s + m.importo, 0))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid var(--border-light)' }}>
-                  <span>Totale Uscite</span>
-                  <span style={{ fontWeight: 800, color: 'var(--danger)' }}>{fmt(movimentiAnno.filter(m => m.tipo === 'uscita').reduce((s, m) => s + m.importo, 0))}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: '1.1rem' }}>
-                  <span style={{ fontWeight: 700 }}>Bilancio Finale</span>
-                  <span style={{ fontWeight: 900, color: (movimentiAnno.filter(m => m.tipo === 'entrata').reduce((s, m) => s + m.importo, 0) - movimentiAnno.filter(m => m.tipo === 'uscita').reduce((s, m) => s + m.importo, 0)) >= 0 ? 'var(--green)' : 'var(--danger)' }}>
-                    {fmt(movimentiAnno.filter(m => m.tipo === 'entrata').reduce((s, m) => s + m.importo, 0) - movimentiAnno.filter(m => m.tipo === 'uscita').reduce((s, m) => s + m.importo, 0))}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="card">
-              <div className="card-header"><h3 className="card-title">Top Categorie ({filtroAnno})</h3></div>
-              <div style={{ padding: 10 }}>
-                {categorie.map(c => {
-                  const tot = movimentiAnno.filter(m => m.categoria_id === c.id).reduce((s, m) => s + m.importo, 0)
-                  if (tot === 0) return null
-                  return (
-                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-light)', fontSize: '.9rem' }}>
-                      <span>{c.icona} {c.nome}</span>
-                      <span style={{ fontWeight: 600, color: c.tipo === 'entrata' ? 'var(--green)' : 'var(--danger)' }}>{fmt(tot)}</span>
-                    </div>
-                  )
-                }).filter(Boolean).slice(0, 8)}
-              </div>
-            </div>
-          </div>
+        <div className="card fade-in" style={{ textAlign: 'center', padding: 60 }}>
+          <div style={{ fontSize: '3rem', marginBottom: 20 }}>📊</div>
+          <h3>Report Annuale in arrivo</h3>
+          <p style={{ color: 'var(--text-muted)' }}>Stiamo elaborando i grafici per il bilancio annuale consolidato.</p>
         </div>
       )}
 
