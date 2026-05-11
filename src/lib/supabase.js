@@ -12,6 +12,5 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     persistSession: true,
     detectSessionInUrl: true,
     storage: localStorage,
-    lock: (name, acquireTimeout, fn) => fn(), // disabilita il locking
   },
 })
