@@ -8,9 +8,10 @@ const supabaseKey  = process.env.REACT_APP_SUPABASE_ANON_KEY
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
-    autoRefreshToken:    true,
-    persistSession:      true,
-    detectSessionInUrl:  true,
-    storage:             localStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storage: localStorage,
+    lock: (name, acquireTimeout, fn) => fn(), // disabilita il locking
   },
 })
