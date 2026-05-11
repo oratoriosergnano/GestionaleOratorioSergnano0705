@@ -629,6 +629,34 @@ export default function App() {
       }
     })
     
+    // ✅ MULTI-TAB SYNC: Ascolta cambiamenti localStorage da altre tab
+    const handleStorageChange = (event) => {
+      if (!isMounted) return
+      
+      // Se il token è cambiato da un'altra tab, ricarica la sessione
+      if (event.key?.includes('sb-') || event.key?.includes('auth')) {
+        console.log('Storage modificato da altra tab — sincronizzazione in corso...')
+        // Ricarica la sessione corrente
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (isMounted) {
+            if (!session && (currentUser || authUser)) {
+              // Session persa — disconnetto
+              console.warn('Session persa da altra tab — disconnessione')
+              setCurrentUser(null)
+              setAuthUser(null)
+              setProfilo(null)
+              setView({ type: 'home' })
+            } else if (session && !currentUser && !authUser) {
+              // Nuova session da altra tab — ricarico
+              console.log('Nuova session rilevata da altra tab')
+              init()
+            }
+          }
+        })
+      }
+    }
+    window.addEventListener('storage', handleStorageChange)
+    
     // Ascolta cambiamenti sessione Auth (Login/Logout in tempo reale)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isMounted) return
@@ -668,6 +696,7 @@ export default function App() {
       if (timeoutId) clearTimeout(timeoutId)
       if (cleanupMonitor) cleanupMonitor()
       unsubscribeAuthSync()
+      window.removeEventListener('storage', handleStorageChange)
       subscription?.unsubscribe()
     }
   }, []) // eslint-disable-line
