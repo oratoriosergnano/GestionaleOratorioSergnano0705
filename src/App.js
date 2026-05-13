@@ -7232,6 +7232,31 @@ function IscrizioneCardEstesa({ i, goTo, dati }) {
 }
 
 // ─── ADMIN CAMPETTO ───────────────────────────────────────────────────────────
+const CONFIG_DEFAULT_CAMPETTO = {
+  orario_inizio: 17,
+  orario_fine: 22,
+  prezzi: {
+    '1h_no_docce': 10,
+    '1h_docce': 15,
+    '1_5h_no_docce': 14,
+    '1_5h_docce': 19,
+    'extra_h': 6,
+    'extra_docce': 3
+  },
+  campi_extra: [],
+  metodi_pagamento: ['Contanti','POS/Carta','Bonifico']
+}
+
+const CONFIG_DEFAULT_SALA = {
+  prezzi: {
+    'senza_riscaldamento': 80,
+    'con_riscaldamento': 95,
+    'aggiunta_campetto': 20
+  },
+  campi_extra: [],
+  metodi_pagamento: ['Contanti','POS/Carta','Bonifico']
+}
+
 function AdminCampetto({ user, goPublic, goBack }) {
   const { data: prenotazioni, loading, reload } = useSupabaseData('prenotazioni_campetto', { order: 'created_at' })
   const [tab, setTab] = useState('prenotazioni')
@@ -7244,8 +7269,19 @@ function AdminCampetto({ user, goPublic, goBack }) {
   const canEdit = canManage(user.ruolo, 'campetto')
 
   useEffect(() => {
-    supabase.from('configurazioni').select('valore').eq('id', 'campetto').single()
-      .then(({ data }) => { if (data) { setConfig(data.valore); setPrezzi(data.valore.prezzi) } })
+    const caricaConfig = async () => {
+      const { data } = await supabase.from('configurazioni').select('valore').eq('id', 'campetto').single()
+      if (data) {
+        setConfig(data.valore)
+        setPrezzi(data.valore.prezzi || CONFIG_DEFAULT_CAMPETTO.prezzi)
+      } else {
+        // Se non esiste, creiamo la configurazione di default
+        await supabase.from('configurazioni').insert([{ id: 'campetto', valore: CONFIG_DEFAULT_CAMPETTO }])
+        setConfig(CONFIG_DEFAULT_CAMPETTO)
+        setPrezzi(CONFIG_DEFAULT_CAMPETTO.prezzi)
+      }
+    }
+    caricaConfig()
   }, [])
 
   if (loading) return <LoadingPage text="Caricamento..." />
@@ -7526,8 +7562,17 @@ function PubCampettoForm({ onBack, authUser, profilo }) {
   const setExtra = (id, val) => setForm(p => ({ ...p, dati_extra: { ...p.dati_extra, [id]: val } }))
 
   useEffect(() => {
-    supabase.from('configurazioni').select('valore').eq('id', 'campetto').single()
-      .then(({ data }) => { if (data) setConfig(data.valore) })
+    const caricaConfig = async () => {
+      const { data } = await supabase.from('configurazioni').select('valore').eq('id', 'campetto').single()
+      if (data) {
+        setConfig(data.valore)
+      } else {
+        // Se non esiste, creiamo la configurazione di default
+        await supabase.from('configurazioni').insert([{ id: 'campetto', valore: CONFIG_DEFAULT_CAMPETTO }])
+        setConfig(CONFIG_DEFAULT_CAMPETTO)
+      }
+    }
+    caricaConfig()
     // Pre-compila con dati account se loggato
     if (authUser && profilo) {
       setForm(p => ({
@@ -7708,8 +7753,19 @@ function AdminSala({ user, goPublic, goBack }) {
   const canEdit = canManage(user.ruolo, 'sala')
 
   useEffect(() => {
-    supabase.from('configurazioni').select('valore').eq('id', 'sala').single()
-      .then(({ data }) => { if (data) { setConfig(data.valore); setPrezzi(data.valore.prezzi) } })
+    const caricaConfig = async () => {
+      const { data } = await supabase.from('configurazioni').select('valore').eq('id', 'sala').single()
+      if (data) {
+        setConfig(data.valore)
+        setPrezzi(data.valore.prezzi || CONFIG_DEFAULT_SALA.prezzi)
+      } else {
+        // Se non esiste, creiamo la configurazione di default
+        await supabase.from('configurazioni').insert([{ id: 'sala', valore: CONFIG_DEFAULT_SALA }])
+        setConfig(CONFIG_DEFAULT_SALA)
+        setPrezzi(CONFIG_DEFAULT_SALA.prezzi)
+      }
+    }
+    caricaConfig()
   }, [])
 
   return (
@@ -7842,8 +7898,17 @@ function PubSalaForm({ onBack, authUser, profilo }) {
   const setExtra = (id, val) => setForm(p => ({ ...p, dati_extra: { ...p.dati_extra, [id]: val } }))
 
   useEffect(() => {
-    supabase.from('configurazioni').select('valore').eq('id', 'sala').single()
-      .then(({ data }) => { if (data) setConfig(data.valore) })
+    const caricaConfig = async () => {
+      const { data } = await supabase.from('configurazioni').select('valore').eq('id', 'sala').single()
+      if (data) {
+        setConfig(data.valore)
+      } else {
+        // Se non esiste, creiamo la configurazione di default
+        await supabase.from('configurazioni').insert([{ id: 'sala', valore: CONFIG_DEFAULT_SALA }])
+        setConfig(CONFIG_DEFAULT_SALA)
+      }
+    }
+    caricaConfig()
     if (authUser && profilo) {
       setForm(p => ({
         ...p,
