@@ -5331,9 +5331,15 @@ function ModalCreaEvento({ onClose, user }) {
     ],
     campi_extra: [], // campi aggiuntivi del form di iscrizione
     metodi_pagamento: ['Contanti', 'POS/Carta', 'Bonifico'], // metodi accettati
+    campi_base: { // campi base opzionali
+      nome_bambino: true, cognome_bambino: true, data_nascita: false, comune_residenza: false,
+      nome_genitore: true, cognome_genitore: true, email_genitore: true, telefono_genitore: true,
+      settimane: true, servizi: true, mensa: true, is_fratello: false, note: false,
+      consenso_privacy: true, consenso_foto: false, consenso_regolamento: false,
+    }
   })
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const steps = ['Informazioni', 'Date & Prezzi', 'Servizi', '💳 Pagamento', '➕ Campi Extra', 'Conferma']
+  const steps = ['Informazioni', 'Date & Prezzi', 'Servizi', '💳 Pagamento', '⚙️ Campi Base', '➕ Campi Extra', 'Conferma']
   const TUTTI_METODI = ['Contanti', 'POS/Carta', 'Bonifico']
 
   const crea = async () => {
@@ -5412,11 +5418,88 @@ function ModalCreaEvento({ onClose, user }) {
         </>}
         {step === 4 && <>
           <div className="alert alert-info" style={{ marginBottom: 16 }}>
+            Seleziona quali campi base mostrare nel modulo di iscrizione pubblico. I campi selezionati saranno obbligatori.
+          </div>
+          
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>👦 Dati bambino</div>
+            <div className="check-group">
+              {[
+                { key: 'nome_bambino', label: 'Nome bambino' },
+                { key: 'cognome_bambino', label: 'Cognome bambino' },
+                { key: 'data_nascita', label: 'Data di nascita' },
+                { key: 'comune_residenza', label: 'Comune di residenza' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>👨‍👩‍👧 Dati genitore</div>
+            <div className="check-group">
+              {[
+                { key: 'nome_genitore', label: 'Nome genitore' },
+                { key: 'cognome_genitore', label: 'Cognome genitore' },
+                { key: 'email_genitore', label: 'Email genitore' },
+                { key: 'telefono_genitore', label: 'Telefono genitore' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>📅 Iscrizione</div>
+            <div className="check-group">
+              {[
+                { key: 'settimane', label: 'Settimane di partecipazione' },
+                { key: 'servizi', label: 'Servizi aggiuntivi' },
+                { key: 'mensa', label: 'Servizio mensa (se presente)' },
+                { key: 'is_fratello', label: 'Sconto fratello/sorella' },
+                { key: 'note', label: 'Note aggiuntive' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>✅ Consensi</div>
+            <div className="check-group">
+              {[
+                { key: 'consenso_privacy', label: 'Consenso privacy (GDPR)' },
+                { key: 'consenso_foto', label: 'Consenso pubblicazione foto' },
+                { key: 'consenso_regolamento', label: 'Accettazione regolamento' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </>}
+        {step === 5 && <>
+          <div className="alert alert-info" style={{ marginBottom: 16 }}>
             Aggiungi campi extra al modulo di iscrizione pubblico: codice fiscale, classe, allergie, ecc. I dati vengono salvati e visibili nell'elenco iscritti.
           </div>
           <EditorCampiExtra campi={form.campi_extra} onChange={v => set('campi_extra', v)} />
         </>}
-        {step === 5 && <>
+        {step === 6 && <>
           <div className="price-box">
             <div style={{ fontWeight: 800, marginBottom: 12, color: 'var(--primary)' }}>✅ Riepilogo evento</div>
             <div style={{ display: 'grid', gap: 8, fontSize: '.9rem' }}>
@@ -5425,6 +5508,7 @@ function ModalCreaEvento({ onClose, user }) {
               <div><b>Quota base:</b> {fmt(form.quota_base)} | <b>Settimana:</b> {fmt(form.prezzo_settimana)} | <b>Giornata:</b> {fmt(form.prezzo_giornata)}</div>
               <div><b>Sconto fratelli:</b> -{fmt(form.sconto_fratelli)}</div>
               <div><b>Servizi:</b> {form.servizi.length === 0 ? 'Nessuno' : form.servizi.map(s => `${s.nome} (${fmt(s.prezzo)})`).join(', ')}</div>
+              <div><b>Campi base abilitati:</b> {Object.keys(form.campi_base).filter(k => form.campi_base[k]).length}</div>
               <div><b>Campi extra:</b> {form.campi_extra.length === 0 ? 'Nessuno' : form.campi_extra.map(c => c.label || '(senza nome)').join(', ')}</div>
               <div><b>Metodi pagamento:</b> {form.metodi_pagamento.join(', ')}</div>
             </div>
@@ -5454,6 +5538,12 @@ function ModalEditEvento({ evento, onClose, user }) {
     servizi: evento.servizi || [],
     campi_extra: evento.campi_extra || [],
     metodi_pagamento: evento.metodi_pagamento || ['Contanti', 'POS/Carta', 'Bonifico'],
+    campi_base: evento.campi_base || { // campi base opzionali (valori di default se non presenti)
+      nome_bambino: true, cognome_bambino: true, data_nascita: false, comune_residenza: false,
+      nome_genitore: true, cognome_genitore: true, email_genitore: true, telefono_genitore: true,
+      settimane: true, servizi: true, mensa: true, is_fratello: false, note: false,
+      consenso_privacy: true, consenso_foto: false, consenso_regolamento: false,
+    },
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
@@ -5473,7 +5563,7 @@ function ModalEditEvento({ evento, onClose, user }) {
       <div className="modal">
         <div className="modal-title">✏️ Modifica: {evento.nome}</div>
         <div className="tabs" style={{ marginBottom: 20 }}>
-          {[['base','📋 Dati base'],['servizi','🛒 Servizi'],['pagamenti','💳 Pagamento'],['campi','➕ Campi Extra']].map(([t,l]) => (
+          {[['base','📋 Dati base'],['servizi','🛒 Servizi'],['pagamenti','💳 Pagamento'],['campibase','⚙️ Campi Base'],['campi','➕ Campi Extra']].map(([t,l]) => (
             <div key={t} className={`tab ${tab === t ? 'active' : ''}`} onClick={() => setTab(t)}>{l}</div>
           ))}
         </div>
@@ -5516,6 +5606,83 @@ function ModalEditEvento({ evento, onClose, user }) {
             ))}
           </div>
         </>}
+        {tab === 'campibase' && <>
+          <div className="alert alert-info" style={{ marginBottom: 16 }}>
+            Seleziona quali campi base mostrare nel modulo di iscrizione pubblico. I campi selezionati saranno obbligatori.
+          </div>
+          
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>👦 Dati bambino</div>
+            <div className="check-group">
+              {[
+                { key: 'nome_bambino', label: 'Nome bambino' },
+                { key: 'cognome_bambino', label: 'Cognome bambino' },
+                { key: 'data_nascita', label: 'Data di nascita' },
+                { key: 'comune_residenza', label: 'Comune di residenza' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>👨‍👩‍👧 Dati genitore</div>
+            <div className="check-group">
+              {[
+                { key: 'nome_genitore', label: 'Nome genitore' },
+                { key: 'cognome_genitore', label: 'Cognome genitore' },
+                { key: 'email_genitore', label: 'Email genitore' },
+                { key: 'telefono_genitore', label: 'Telefono genitore' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>📅 Iscrizione</div>
+            <div className="check-group">
+              {[
+                { key: 'settimane', label: 'Settimane di partecipazione' },
+                { key: 'servizi', label: 'Servizi aggiuntivi' },
+                { key: 'mensa', label: 'Servizio mensa (se presente)' },
+                { key: 'is_fratello', label: 'Sconto fratello/sorella' },
+                { key: 'note', label: 'Note aggiuntive' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>✅ Consensi</div>
+            <div className="check-group">
+              {[
+                { key: 'consenso_privacy', label: 'Consenso privacy (GDPR)' },
+                { key: 'consenso_foto', label: 'Consenso pubblicazione foto' },
+                { key: 'consenso_regolamento', label: 'Accettazione regolamento' },
+              ].map(campo => (
+                <label key={campo.key} className={`check-item ${form.campi_base[campo.key] ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.campi_base[campo.key]} 
+                    onChange={e => set('campi_base', { ...form.campi_base, [campo.key]: e.target.checked })} />
+                  <span>{campo.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </>}
         {tab === 'campi' && <>
           <div className="alert alert-info" style={{ marginBottom: 16 }}>
             I campi extra appaiono nel modulo pubblico di iscrizione. I dati inseriti dai genitori vengono salvati e visibili nell'elenco iscritti.
@@ -5535,50 +5702,90 @@ function ModalEditEvento({ evento, onClose, user }) {
 function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
   const [evento, setEvento] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [step, setStep] = useState(0)
   const [success, setSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
+    nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '',
+    nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '',
+    settimane: [], servizi: [], mensa_settimane: [], is_fratello: false, note: '',
+    consenso_privacy: false, consenso_foto: false, consenso_regolamento: false,
     dati_extra: {},
+    metodo_pagamento: '',
   })
+  const [showPwdGenitore, setShowPwdGenitore] = useState(false)
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const toggle = (k, val) => setForm(p => ({ ...p, [k]: p[k].includes(val) ? p[k].filter(x => x !== val) : [...p[k], val] }))
   const setExtra = (id, val) => setForm(p => ({ ...p, dati_extra: { ...p.dati_extra, [id]: val } }))
 
   useEffect(() => {
     supabase.from('eventi').select('*').eq('id', eventoId).single()
       .then(({ data }) => { setEvento(data); setLoading(false) })
-  }, [eventoId])
+    // Pre-compila dati genitore dall'account loggato
+    if (authUser && profilo) {
+      setForm(p => ({
+        ...p,
+        nome_genitore:     profilo.nome    || '',
+        cognome_genitore:  profilo.cognome || '',
+        email_genitore:    authUser.email  || '',
+        telefono_genitore: profilo.telefono || '',
+      }))
+    }
+  }, [eventoId, authUser, profilo]) // eslint-disable-line
 
   if (loading) return <div className="public-page"><LoadingPage text="Caricamento evento..." /></div>
   if (!evento) return <div className="public-page"><div className="alert alert-danger">Evento non trovato.</div><button className="btn btn-ghost" onClick={onBack}>← Indietro</button></div>
 
+  const settimane = getWeeksInRange(evento.data_inizio, evento.data_fine)
+
+  const mensaServizio = (evento.servizi || []).find(s => s.nome?.toLowerCase().includes('mensa'))
+  const isMensaService = (s) => s.nome?.toLowerCase().includes('mensa')
+  const PREZZO_MENSA_SETTIMANA = 5
+
+  const calcTotale = () => {
+    let tot = +evento.quota_base || 0
+    tot += form.settimane.length * (+evento.prezzo_settimana || 0)
+    // servizi NON-mensa: prezzo piatto
+    ;(evento.servizi || []).forEach(s => {
+      if (!isMensaService(s) && form.servizi.includes(s.id)) tot += +s.prezzo
+    })
+    // mensa: 5€ per ogni settimana selezionata
+    tot += (form.mensa_settimane || []).length * PREZZO_MENSA_SETTIMANA
+    if (form.is_fratello) tot -= +evento.sconto_fratelli || 0
+    return Math.max(0, tot)
+  }
+
+  const stepNames = ['👦 Bambino', '👨‍👩‍👧 Genitore', '📅 Iscrizione', '✅ Consensi']
+
   const invia = async () => {
     setSaving(true)
+    const pwdHash = null  // credenziali gestite da Supabase Auth
     const dati = {
       ...form,
       evento_id: evento.id,
-      totale: 0,
+      totale: calcTotale(),
+      email_genitore: (form.email_genitore || '').trim().toLowerCase(),
       saldato: false,
       utente_id: authUser?.id || null
     }
     const { error: errIscr } = await supabase.from('iscrizioni').insert([dati])
     if (errIscr) { alert('Errore nell\'iscrizione: ' + errIscr.message); setSaving(false); return }
-    logAudit({ 
-      user: { nome: 'Iscrizione pubblica', email: '', id: null },
-      azione: 'NUOVA_ISCRIZIONE', 
-      categoria: 'Iscrizioni',
-      dettaglio: `Nuova iscrizione a "${evento.nome}"`,
-      meta: { evento_id: dati.evento_id } 
-    })
+    logAudit({ user: { nome: `${dati.nome_genitore || ''} ${dati.cognome_genitore || ''}`.trim(), email: dati.email_genitore || '', id: null },
+      azione: 'NUOVA_ISCRIZIONE', categoria: 'Iscrizioni',
+      dettaglio: `Nuova iscrizione: ${dati.nome_bambino} ${dati.cognome_bambino} a "${evento.nome}" — ${fmt(dati.totale)}`,
+      meta: { nome_bambino: dati.nome_bambino, cognome_bambino: dati.cognome_bambino,
+        evento_id: dati.evento_id, totale: dati.totale } })
     sendPushNotification({
       titolo: '📋 Nuova iscrizione',
-      corpo:  `Nuova iscrizione a "${evento.nome}"`,
+      corpo:  `${dati.nome_bambino} ${dati.cognome_bambino} si è iscritto/a a "${evento.nome}"`,
       target_tipo: 'superadmin',
     })
     setSaving(false); setSuccess(true)
   }
 
   const resetForm = () => {
-    setSuccess(false)
-    setForm({ dati_extra: {} })
+    setSuccess(false); setStep(0)
+    setForm({ nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '', nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '', settimane: [], servizi: [], mensa_settimane: [], is_fratello: false, note: '', consenso_privacy: false, consenso_foto: false, consenso_regolamento: false, dati_extra: {}, metodo_pagamento: '' })
   }
 
   if (success) return (
@@ -5586,6 +5793,10 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
       <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
       <h2 style={{ color: 'var(--primary)', marginBottom: 8 }}>Iscrizione inviata!</h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>Grazie! Iscrizione per <b>{evento.nome}</b> registrata correttamente.</p>
+      <div className="price-box" style={{ maxWidth: 300, margin: '0 auto 24px' }}>
+        <div className="price-total">{fmt(calcTotale())}</div>
+        <div className="price-breakdown">Totale da versare</div>
+      </div>
       <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center' }}>
         <button className="btn btn-primary btn-lg" onClick={resetForm}>+ Nuova iscrizione</button>
         {authUser && <button className="btn btn-success btn-lg" onClick={() => { onBack(); setTimeout(() => window.dispatchEvent(new CustomEvent('goto-area-personale')), 100) }}>👤 La mia area →</button>}
@@ -5606,30 +5817,234 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
         {evento.descrizione && <p style={{ marginTop: 8, fontStyle: 'italic' }}>{evento.descrizione}</p>}
       </div>
       <BannerUtente authUser={authUser} profilo={profilo} />
-      
-      <div className="card">
-        {(evento.campi_extra || []).length === 0 ? (
-          <div className="alert alert-info">
-            Nessun campo di iscrizione configurato per questo evento.
+      <div className="steps">
+        {stepNames.map((s, i) => (
+          <div key={i} className={`step ${i === step ? 'active' : i < step ? 'done' : ''}`}>
+            <div className="step-num">{i < step ? '✓' : i + 1}</div>
+            <div className="step-label">{s}</div>
           </div>
-        ) : (
-          <>
-            {(evento.campi_extra || []).map(campo => (
-              <CampoExtra
-                key={campo.id}
-                campo={campo}
-                value={form.dati_extra[campo.id]}
-                onChange={val => setExtra(campo.id, val)}
-              />
-            ))}
-          </>
-        )}
-
-        <div className="modal-footer" style={{ marginTop: 24 }}>
-          <button className="btn btn-ghost" onClick={onBack}>Annulla</button>
-          <button className="btn btn-primary" onClick={invia} disabled={saving}>
-            {saving ? <><span className="spinner" /> Invio in corso...</> : '📤 Invia iscrizione'}
-          </button>
+        ))}
+      </div>
+      <div className="card">
+        {step === 0 && <>
+          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>👦 Dati del bambino/ragazzo</h3>
+          <div className="form-row">
+            {evento.campi_base?.nome_bambino && (
+              <div className="form-group"><label className="form-label">Nome *</label><input className="form-input" value={form.nome_bambino} onChange={e => set('nome_bambino', e.target.value)} /></div>
+            )}
+            {evento.campi_base?.cognome_bambino && (
+              <div className="form-group"><label className="form-label">Cognome *</label><input className="form-input" value={form.cognome_bambino} onChange={e => set('cognome_bambino', e.target.value)} /></div>
+            )}
+          </div>
+          <div className="form-row">
+            {evento.campi_base?.data_nascita && (
+              <div className="form-group"><label className="form-label">Data di nascita</label><input className="form-input" type="date" value={form.data_nascita} onChange={e => set('data_nascita', e.target.value)} /></div>
+            )}
+            {evento.campi_base?.comune_residenza && (
+              <div className="form-group"><label className="form-label">Comune di residenza</label><input className="form-input" value={form.comune_residenza} onChange={e => set('comune_residenza', e.target.value)} /></div>
+            )}
+          </div>
+          {/* Campi extra configurati dall'admin */}
+          {(evento.campi_extra || []).length > 0 && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 700, fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>Informazioni aggiuntive richieste dall'evento</div>
+              {(evento.campi_extra || []).map(campo => (
+                <CampoExtra
+                  key={campo.id}
+                  campo={campo}
+                  value={form.dati_extra[campo.id]}
+                  onChange={val => setExtra(campo.id, val)}
+                />
+              ))}
+            </div>
+          )}
+          {evento.campi_base?.is_fratello && (
+            <label className={`check-item ${form.is_fratello ? 'checked' : ''}`} style={{ marginTop: 8 }}>
+              <input type="checkbox" checked={form.is_fratello} onChange={e => set('is_fratello', e.target.checked)} />
+              <span>Sconto fratello/sorella (-{fmt(evento.sconto_fratelli || 0)})</span>
+            </label>
+          )}
+        </>}
+        {step === 1 && <>
+          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>👨‍👩‍👧 Dati del genitore/tutore</h3>
+          <div className="form-row">
+            {evento.campi_base?.nome_genitore && (
+              <div className="form-group"><label className="form-label">Nome *</label><input className="form-input" value={form.nome_genitore} onChange={e => set('nome_genitore', e.target.value)} /></div>
+            )}
+            {evento.campi_base?.cognome_genitore && (
+              <div className="form-group"><label className="form-label">Cognome *</label><input className="form-input" value={form.cognome_genitore} onChange={e => set('cognome_genitore', e.target.value)} /></div>
+            )}
+          </div>
+          <div className="form-row">
+            {evento.campi_base?.email_genitore && (
+              <div className="form-group"><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email_genitore} onChange={e => set('email_genitore', e.target.value)} /></div>
+            )}
+            {evento.campi_base?.telefono_genitore && (
+              <div className="form-group"><label className="form-label">Telefono *</label><input className="form-input" type="tel" value={form.telefono_genitore} onChange={e => set('telefono_genitore', e.target.value)} /></div>
+            )}
+          </div>
+                    {authUser ? (
+            /* Utente loggato: l'iscrizione viene collegata all'account */
+            <div style={{ background: 'var(--secondary-pale)', border: '1.5px solid var(--secondary)',
+              borderRadius: 12, padding: 16, marginTop: 8 }}>
+              <div style={{ fontWeight: 800, fontSize: '.9rem', marginBottom: 4, color: '#1a6b66' }}>
+                ✅ Account collegato
+              </div>
+              <div style={{ fontSize: '.82rem', color: '#2a9d8f', lineHeight: 1.5 }}>
+                L'iscrizione sarà collegata al tuo account <b>{authUser.email}</b>.
+                Potrai consultare presenze, buoni pasto e comunicazioni dalla tua area personale.
+              </div>
+            </div>
+          ) : (
+            /* Utente non loggato: invito + credenziali legacy */
+            <>
+              <div style={{ background: '#fff8e1', border: '1.5px solid var(--accent)',
+                borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: '.85rem', color: '#8a5c00', marginBottom: 4 }}>
+                  💡 Hai già un account?
+                </div>
+                <div style={{ fontSize: '.78rem', color: '#8a5c00', lineHeight: 1.5, marginBottom: 10 }}>
+                  Accedi prima di iscriverti per collegare automaticamente questa iscrizione al tuo
+                  account e accedere alla tua area personale.
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn btn-primary btn-sm"
+                    onClick={() => window.dispatchEvent(new CustomEvent('goto-login-utente'))}>
+                    🔓 Accedi
+                  </button>
+                  <button type="button" className="btn btn-ghost btn-sm"
+                    onClick={() => window.dispatchEvent(new CustomEvent('goto-registrazione'))}>
+                    ✏️ Registrati
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </>}
+        {step === 2 && <>
+          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>📅 Settimane e servizi</h3>
+          {evento.campi_base?.settimane && settimane.length > 0 && <>
+            <div className="form-label" style={{ marginBottom: 8 }}>Settimane di partecipazione</div>
+            <div className="check-group" style={{ marginBottom: 20 }}>
+              {settimane.map(s => (
+                <label key={s.id} className={`check-item ${form.settimane.includes(s.id) ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.settimane.includes(s.id)} onChange={() => toggle('settimane', s.id)} />
+                  <span>{s.label} — <b>{fmt(evento.prezzo_settimana || 0)}</b></span>
+                </label>
+              ))}
+            </div>
+          </>}
+          {evento.campi_base?.servizi && (evento.servizi || []).length > 0 && <>
+            <div className="form-label" style={{ marginBottom: 8 }}>Servizi aggiuntivi</div>
+            <div className="check-group" style={{ marginBottom: 20 }}>
+              {evento.servizi.filter(s => !isMensaService(s)).map(s => (
+                <label key={s.id} className={`check-item ${form.servizi.includes(s.id) ? 'checked' : ''}`}>
+                  <input type="checkbox" checked={form.servizi.includes(s.id)} onChange={() => toggle('servizi', s.id)} />
+                  <span>{s.nome} — <b>{fmt(s.prezzo)}</b></span>
+                </label>
+              ))}
+            </div>
+          </>}
+          {evento.campi_base?.mensa && mensaServizio && settimane.length > 0 && (
+            <div style={{ marginBottom: 20 }}>
+              <div className="form-label" style={{ marginBottom: 4 }}>🍽️ Servizio Mensa</div>
+              <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                Seleziona le settimane in cui il bambino usufruirà della mensa — <b>€{PREZZO_MENSA_SETTIMANA} per settimana</b>
+              </div>
+              <div className="check-group">
+                {settimane.map(s => {
+                  const sel = (form.mensa_settimane || []).includes(s.id)
+                  return (
+                    <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`}
+                      style={{ borderColor: sel ? '#e67e22' : undefined, background: sel ? '#fff8e1' : undefined }}>
+                      <input type="checkbox" checked={sel}
+                        onChange={() => setForm(p => ({
+                          ...p,
+                          mensa_settimane: sel
+                            ? p.mensa_settimane.filter(x => x !== s.id)
+                            : [...(p.mensa_settimane || []), s.id]
+                        }))} />
+                      <span>🍽️ {s.label} — <b>€{PREZZO_MENSA_SETTIMANA}</b></span>
+                    </label>
+                  )
+                })}
+              </div>
+              {(form.mensa_settimane || []).length > 0 && (
+                <div style={{ marginTop: 8, padding: '8px 14px', background: '#fff8e1', borderRadius: 8, fontSize: '.85rem', color: '#e65100', fontWeight: 700 }}>
+                  🍽️ Mensa selezionata per {form.mensa_settimane.length} settimane → {fmt((form.mensa_settimane || []).length * PREZZO_MENSA_SETTIMANA)}
+                </div>
+              )}
+            </div>
+          )}
+          {evento.campi_base?.note && (
+            <div className="form-group"><label className="form-label">Note aggiuntive</label><textarea className="form-textarea" value={form.note} onChange={e => set('note', e.target.value)} placeholder="Allergie, esigenze particolari..." /></div>
+          )}
+          {(evento.metodi_pagamento || ['Contanti','POS/Carta','Bonifico']).length > 0 && (
+            <div className="form-group">
+              <label className="form-label">Metodo di pagamento *</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                {(evento.metodi_pagamento || ['Contanti','POS/Carta','Bonifico']).map(m => (
+                  <button key={m} type="button"
+                    className={`btn ${form.metodo_pagamento === m ? 'btn-primary' : 'btn-ghost'}`}
+                    onClick={() => set('metodo_pagamento', m)}>
+                    {m === 'Contanti' ? '💵 Contanti' : m === 'POS/Carta' ? '💳 POS/Carta' : '🏦 Bonifico'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="price-box">
+            <div style={{ fontWeight: 700, marginBottom: 8 }}>Riepilogo costi</div>
+            <div className="price-breakdown" style={{ lineHeight: 1.8 }}>
+              <div>Quota base: {fmt(evento.quota_base || 0)}</div>
+              {evento.campi_base?.settimane && form.settimane.length > 0 && <div>Settimane ({form.settimane.length}): +{fmt(form.settimane.length * (evento.prezzo_settimana || 0))}</div>}
+              {evento.campi_base?.mensa && (form.mensa_settimane||[]).length > 0 && <div>Mensa ({form.mensa_settimane.length} sett.): +{fmt(form.mensa_settimane.length * PREZZO_MENSA_SETTIMANA)}</div>}
+              {evento.campi_base?.servizi && form.servizi.length > 0 && <div>Servizi extra: +{fmt((evento.servizi||[]).filter(s => !isMensaService(s) && form.servizi.includes(s.id)).reduce((a,s) => a + +s.prezzo, 0))}</div>}
+              {evento.campi_base?.is_fratello && form.is_fratello && <div>Sconto fratello: −{fmt(evento.sconto_fratelli || 0)}</div>}
+            </div>
+            <div className="price-total">{fmt(calcTotale())}</div>
+          </div>
+        </>}
+        {step === 3 && <>
+          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>✅ Consensi e invio</h3>
+          <div className="check-group">
+            {evento.campi_base?.consenso_privacy && (
+              <label className={`check-item ${form.consenso_privacy ? 'checked' : ''}`}>
+                <input type="checkbox" checked={form.consenso_privacy} onChange={e => set('consenso_privacy', e.target.checked)} />
+                <span>Acconsento al trattamento dei dati personali ai sensi del GDPR *</span>
+              </label>
+            )}
+            {evento.campi_base?.consenso_foto && (
+              <label className={`check-item ${form.consenso_foto ? 'checked' : ''}`}>
+                <input type="checkbox" checked={form.consenso_foto} onChange={e => set('consenso_foto', e.target.checked)} />
+                <span>Autorizzo la pubblicazione di foto/video del minore *</span>
+              </label>
+            )}
+            {evento.campi_base?.consenso_regolamento && (
+              <label className={`check-item ${form.consenso_regolamento ? 'checked' : ''}`}>
+                <input type="checkbox" checked={form.consenso_regolamento} onChange={e => set('consenso_regolamento', e.target.checked)} />
+                <span>Dichiaro di aver letto e accettato il regolamento dell'oratorio *</span>
+              </label>
+            )}
+          </div>
+          <div className="price-box" style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Totale iscrizione</div>
+            <div className="price-total">{fmt(calcTotale())}</div>
+          </div>
+        </>}
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', marginTop: 24 }}>
+          <button className="btn btn-ghost" onClick={step === 0 ? onBack : () => setStep(s => s - 1)}>← Indietro</button>
+          {step < stepNames.length - 1
+            ? <button className="btn btn-primary btn-lg"
+                onClick={() => setStep(s => s + 1)}
+                disabled={false}>
+                Continua →
+              </button>
+            : <button className="btn btn-success btn-lg" onClick={invia}
+                disabled={saving || (evento.campi_base?.consenso_privacy && !form.consenso_privacy)}>
+                {saving ? <><span className="spinner" /> Invio...</> : '📩 Invia iscrizione'}
+              </button>
+          }
         </div>
       </div>
     </div>
