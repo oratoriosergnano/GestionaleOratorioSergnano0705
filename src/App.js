@@ -9,6 +9,7 @@ const RUOLI = {
   admin_eventi:      { label: 'Admin Eventi',        color: '#2980b9' },
   admin_campetto:    { label: 'Admin Campetto',      color: 'var(--green)' },
   admin_sala:        { label: 'Admin Sala Feste',    color: '#8e44ad' },
+  admin_feste:       { label: 'Admin Feste',         color: '#e67e22' },
   admin_appartamento:{ label: 'Admin Appartamento',  color: '#d35400' },
   admin_segreteria:  { label: 'Segreteria',          color: '#7f8c8d' },
 }
