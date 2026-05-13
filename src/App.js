@@ -3426,7 +3426,9 @@ Oratorio di Sergnano`)
           <th>Nome</th><th>Cognome</th><th>Nato il</th><th>Genitore</th>
           <th>Settimane</th><th>Servizi</th><th>Totale</th><th>Saldato</th>
           <th>🏷️</th>
-          {campiExtra.length > 0 && <th>Extra</th>}
+          {campiExtra.map(campo => (
+            <th key={campo.id}>{campo.label}</th>
+          ))}
           <th>Username</th>
           <th></th>
         </tr></thead>
@@ -3481,13 +3483,20 @@ Oratorio di Sergnano`)
                 </button>
               </div>
             </td>
-            {campiExtra.length > 0 && (
-              <td>
-                <button className="btn btn-sm btn-ghost" onClick={() => setDettaglio(dettaglio?.id === i.id ? null : i)}>
-                  👁 Dati
-                </button>
-              </td>
-            )}
+            {campiExtra.map(campo => {
+              const valore = (i.dati_extra || {})[campo.id];
+              let testoVisualizzato;
+              if (campo.tipo === 'checkbox') {
+                testoVisualizzato = valore ? 'Sì' : 'No';
+              } else {
+                testoVisualizzato = String(valore ?? '—');
+              }
+              return (
+                <td key={campo.id}>
+                  <small>{testoVisualizzato}</small>
+                </td>
+              );
+            })}
             <td style={{ textAlign: 'center' }}>
               {i.username_genitore
                 ? <code style={{ background: 'var(--secondary-pale)', color: '#1a6b66',
@@ -3909,14 +3918,23 @@ ${resetLink}`
             📋 Dati extra — {dettaglio.nome_bambino} {dettaglio.cognome_bambino}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            {campiExtra.map(c => (
-              <div key={c.id} style={{ background: '#fff', borderRadius: 8, padding: '8px 12px' }}>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>{c.label}</div>
-                <div style={{ fontWeight: 600 }}>
-                  {String((dettaglio.dati_extra || {})[c.id] ?? '—')}
+            {campiExtra.map(c => {
+              const valore = (dettaglio.dati_extra || {})[c.id];
+              let testoVisualizzato;
+              if (c.tipo === 'checkbox') {
+                testoVisualizzato = valore ? 'Sì' : 'No';
+              } else {
+                testoVisualizzato = String(valore ?? '—');
+              }
+              return (
+                <div key={c.id} style={{ background: '#fff', borderRadius: 8, padding: '8px 12px' }}>
+                  <div style={{ fontSize: '.75rem', color: 'var(--text-muted)', fontWeight: 700 }}>{c.label}</div>
+                  <div style={{ fontWeight: 600 }}>
+                    {testoVisualizzato}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           <button className="btn btn-sm btn-ghost" style={{ marginTop: 10 }} onClick={() => setDettaglio(null)}>✕ Chiudi</button>
         </div>
@@ -5517,90 +5535,50 @@ function ModalEditEvento({ evento, onClose, user }) {
 function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
   const [evento, setEvento] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [step, setStep] = useState(0)
   const [success, setSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '',
-    nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '',
-    settimane: [], servizi: [], mensa_settimane: [], is_fratello: false, note: '',
-    consenso_privacy: false, consenso_foto: false, consenso_regolamento: false,
     dati_extra: {},
-    metodo_pagamento: '',
   })
-  const [showPwdGenitore, setShowPwdGenitore] = useState(false)
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
-  const toggle = (k, val) => setForm(p => ({ ...p, [k]: p[k].includes(val) ? p[k].filter(x => x !== val) : [...p[k], val] }))
   const setExtra = (id, val) => setForm(p => ({ ...p, dati_extra: { ...p.dati_extra, [id]: val } }))
 
   useEffect(() => {
     supabase.from('eventi').select('*').eq('id', eventoId).single()
       .then(({ data }) => { setEvento(data); setLoading(false) })
-    // Pre-compila dati genitore dall'account loggato
-    if (authUser && profilo) {
-      setForm(p => ({
-        ...p,
-        nome_genitore:     profilo.nome    || '',
-        cognome_genitore:  profilo.cognome || '',
-        email_genitore:    authUser.email  || '',
-        telefono_genitore: profilo.telefono || '',
-      }))
-    }
-  }, [eventoId, authUser, profilo]) // eslint-disable-line
+  }, [eventoId])
 
   if (loading) return <div className="public-page"><LoadingPage text="Caricamento evento..." /></div>
   if (!evento) return <div className="public-page"><div className="alert alert-danger">Evento non trovato.</div><button className="btn btn-ghost" onClick={onBack}>← Indietro</button></div>
 
-  const settimane = getWeeksInRange(evento.data_inizio, evento.data_fine)
-
-  const mensaServizio = (evento.servizi || []).find(s => s.nome?.toLowerCase().includes('mensa'))
-  const isMensaService = (s) => s.nome?.toLowerCase().includes('mensa')
-  const PREZZO_MENSA_SETTIMANA = 5
-
-  const calcTotale = () => {
-    let tot = +evento.quota_base || 0
-    tot += form.settimane.length * (+evento.prezzo_settimana || 0)
-    // servizi NON-mensa: prezzo piatto
-    ;(evento.servizi || []).forEach(s => {
-      if (!isMensaService(s) && form.servizi.includes(s.id)) tot += +s.prezzo
-    })
-    // mensa: 5€ per ogni settimana selezionata
-    tot += (form.mensa_settimane || []).length * PREZZO_MENSA_SETTIMANA
-    if (form.is_fratello) tot -= +evento.sconto_fratelli || 0
-    return Math.max(0, tot)
-  }
-
-  const stepNames = ['👦 Bambino', '👨‍👩‍👧 Genitore', '📅 Iscrizione', '✅ Consensi']
-
   const invia = async () => {
     setSaving(true)
-    const pwdHash = null  // credenziali gestite da Supabase Auth
     const dati = {
       ...form,
       evento_id: evento.id,
-      totale: calcTotale(),
-      email_genitore: (form.email_genitore || '').trim().toLowerCase(),
+      totale: 0,
       saldato: false,
       utente_id: authUser?.id || null
     }
     const { error: errIscr } = await supabase.from('iscrizioni').insert([dati])
     if (errIscr) { alert('Errore nell\'iscrizione: ' + errIscr.message); setSaving(false); return }
-    logAudit({ user: { nome: `${dati.nome_genitore || ''} ${dati.cognome_genitore || ''}`.trim(), email: dati.email_genitore || '', id: null },
-      azione: 'NUOVA_ISCRIZIONE', categoria: 'Iscrizioni',
-      dettaglio: `Nuova iscrizione: ${dati.nome_bambino} ${dati.cognome_bambino} a "${evento.nome}" — ${fmt(dati.totale)}`,
-      meta: { nome_bambino: dati.nome_bambino, cognome_bambino: dati.cognome_bambino,
-        evento_id: dati.evento_id, totale: dati.totale } })
+    logAudit({ 
+      user: { nome: 'Iscrizione pubblica', email: '', id: null },
+      azione: 'NUOVA_ISCRIZIONE', 
+      categoria: 'Iscrizioni',
+      dettaglio: `Nuova iscrizione a "${evento.nome}"`,
+      meta: { evento_id: dati.evento_id } 
+    })
     sendPushNotification({
       titolo: '📋 Nuova iscrizione',
-      corpo:  `${dati.nome_bambino} ${dati.cognome_bambino} si è iscritto/a a "${evento.nome}"`,
+      corpo:  `Nuova iscrizione a "${evento.nome}"`,
       target_tipo: 'superadmin',
     })
     setSaving(false); setSuccess(true)
   }
 
   const resetForm = () => {
-    setSuccess(false); setStep(0)
-    setForm({ nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '', nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '', settimane: [], servizi: [], mensa_settimane: [], is_fratello: false, note: '', consenso_privacy: false, consenso_foto: false, consenso_regolamento: false, dati_extra: {}, metodo_pagamento: '' })
+    setSuccess(false)
+    setForm({ dati_extra: {} })
   }
 
   if (success) return (
@@ -5608,10 +5586,6 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
       <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
       <h2 style={{ color: 'var(--primary)', marginBottom: 8 }}>Iscrizione inviata!</h2>
       <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>Grazie! Iscrizione per <b>{evento.nome}</b> registrata correttamente.</p>
-      <div className="price-box" style={{ maxWidth: 300, margin: '0 auto 24px' }}>
-        <div className="price-total">{fmt(calcTotale())}</div>
-        <div className="price-breakdown">Totale da versare</div>
-      </div>
       <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center' }}>
         <button className="btn btn-primary btn-lg" onClick={resetForm}>+ Nuova iscrizione</button>
         {authUser && <button className="btn btn-success btn-lg" onClick={() => { onBack(); setTimeout(() => window.dispatchEvent(new CustomEvent('goto-area-personale')), 100) }}>👤 La mia area →</button>}
@@ -5632,208 +5606,30 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
         {evento.descrizione && <p style={{ marginTop: 8, fontStyle: 'italic' }}>{evento.descrizione}</p>}
       </div>
       <BannerUtente authUser={authUser} profilo={profilo} />
-      <div className="steps">
-        {stepNames.map((s, i) => (
-          <div key={i} className={`step ${i === step ? 'active' : i < step ? 'done' : ''}`}>
-            <div className="step-num">{i < step ? '✓' : i + 1}</div>
-            <div className="step-label">{s}</div>
-          </div>
-        ))}
-      </div>
+      
       <div className="card">
-        {step === 0 && <>
-          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>👦 Dati del bambino/ragazzo</h3>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Nome *</label><input className="form-input" value={form.nome_bambino} onChange={e => set('nome_bambino', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Cognome *</label><input className="form-input" value={form.cognome_bambino} onChange={e => set('cognome_bambino', e.target.value)} /></div>
+        {(evento.campi_extra || []).length === 0 ? (
+          <div className="alert alert-info">
+            Nessun campo di iscrizione configurato per questo evento.
           </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Data di nascita</label><input className="form-input" type="date" value={form.data_nascita} onChange={e => set('data_nascita', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Comune di residenza</label><input className="form-input" value={form.comune_residenza} onChange={e => set('comune_residenza', e.target.value)} /></div>
-          </div>
-          {/* Campi extra configurati dall'admin */}
-          {(evento.campi_extra || []).length > 0 && (
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-              <div style={{ fontWeight: 700, fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 12 }}>Informazioni aggiuntive richieste dall'evento</div>
-              {(evento.campi_extra || []).map(campo => (
-                <CampoExtra
-                  key={campo.id}
-                  campo={campo}
-                  value={form.dati_extra[campo.id]}
-                  onChange={val => setExtra(campo.id, val)}
-                />
-              ))}
-            </div>
-          )}
-          <label className={`check-item ${form.is_fratello ? 'checked' : ''}`} style={{ marginTop: 8 }}>
-            <input type="checkbox" checked={form.is_fratello} onChange={e => set('is_fratello', e.target.checked)} />
-            <span>Sconto fratello/sorella (-{fmt(evento.sconto_fratelli || 0)})</span>
-          </label>
-        </>}
-        {step === 1 && <>
-          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>👨‍👩‍👧 Dati del genitore/tutore</h3>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Nome *</label><input className="form-input" value={form.nome_genitore} onChange={e => set('nome_genitore', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Cognome *</label><input className="form-input" value={form.cognome_genitore} onChange={e => set('cognome_genitore', e.target.value)} /></div>
-          </div>
-          <div className="form-row">
-            <div className="form-group"><label className="form-label">Email *</label><input className="form-input" type="email" value={form.email_genitore} onChange={e => set('email_genitore', e.target.value)} /></div>
-            <div className="form-group"><label className="form-label">Telefono *</label><input className="form-input" type="tel" value={form.telefono_genitore} onChange={e => set('telefono_genitore', e.target.value)} /></div>
-          </div>
-                    {authUser ? (
-            /* Utente loggato: l'iscrizione viene collegata all'account */
-            <div style={{ background: 'var(--secondary-pale)', border: '1.5px solid var(--secondary)',
-              borderRadius: 12, padding: 16, marginTop: 8 }}>
-              <div style={{ fontWeight: 800, fontSize: '.9rem', marginBottom: 4, color: '#1a6b66' }}>
-                ✅ Account collegato
-              </div>
-              <div style={{ fontSize: '.82rem', color: '#2a9d8f', lineHeight: 1.5 }}>
-                L'iscrizione sarà collegata al tuo account <b>{authUser.email}</b>.
-                Potrai consultare presenze, buoni pasto e comunicazioni dalla tua area personale.
-              </div>
-            </div>
-          ) : (
-            /* Utente non loggato: invito + credenziali legacy */
-            <>
-              <div style={{ background: '#fff8e1', border: '1.5px solid var(--accent)',
-                borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 12 }}>
-                <div style={{ fontWeight: 700, fontSize: '.85rem', color: '#8a5c00', marginBottom: 4 }}>
-                  💡 Hai già un account?
-                </div>
-                <div style={{ fontSize: '.78rem', color: '#8a5c00', lineHeight: 1.5, marginBottom: 10 }}>
-                  Accedi prima di iscriverti per collegare automaticamente questa iscrizione al tuo
-                  account e accedere alla tua area personale.
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" className="btn btn-primary btn-sm"
-                    onClick={() => window.dispatchEvent(new CustomEvent('goto-login-utente'))}>
-                    🔓 Accedi
-                  </button>
-                  <button type="button" className="btn btn-ghost btn-sm"
-                    onClick={() => window.dispatchEvent(new CustomEvent('goto-registrazione'))}>
-                    ✏️ Registrati
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-        </>}
-        {step === 2 && <>
-          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>📅 Settimane e servizi</h3>
-          {settimane.length > 0 && <>
-            <div className="form-label" style={{ marginBottom: 8 }}>Settimane di partecipazione</div>
-            <div className="check-group" style={{ marginBottom: 20 }}>
-              {settimane.map(s => (
-                <label key={s.id} className={`check-item ${form.settimane.includes(s.id) ? 'checked' : ''}`}>
-                  <input type="checkbox" checked={form.settimane.includes(s.id)} onChange={() => toggle('settimane', s.id)} />
-                  <span>{s.label} — <b>{fmt(evento.prezzo_settimana || 0)}</b></span>
-                </label>
-              ))}
-            </div>
-          </>}
-          {(evento.servizi || []).length > 0 && <>
-            <div className="form-label" style={{ marginBottom: 8 }}>Servizi aggiuntivi</div>
-            <div className="check-group" style={{ marginBottom: 20 }}>
-              {evento.servizi.filter(s => !isMensaService(s)).map(s => (
-                <label key={s.id} className={`check-item ${form.servizi.includes(s.id) ? 'checked' : ''}`}>
-                  <input type="checkbox" checked={form.servizi.includes(s.id)} onChange={() => toggle('servizi', s.id)} />
-                  <span>{s.nome} — <b>{fmt(s.prezzo)}</b></span>
-                </label>
-              ))}
-            </div>
-          </>}
-          {mensaServizio && settimane.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div className="form-label" style={{ marginBottom: 4 }}>🍽️ Servizio Mensa</div>
-              <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>
-                Seleziona le settimane in cui il bambino usufruirà della mensa — <b>€{PREZZO_MENSA_SETTIMANA} per settimana</b>
-              </div>
-              <div className="check-group">
-                {settimane.map(s => {
-                  const sel = (form.mensa_settimane || []).includes(s.id)
-                  return (
-                    <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`}
-                      style={{ borderColor: sel ? '#e67e22' : undefined, background: sel ? '#fff8e1' : undefined }}>
-                      <input type="checkbox" checked={sel}
-                        onChange={() => setForm(p => ({
-                          ...p,
-                          mensa_settimane: sel
-                            ? p.mensa_settimane.filter(x => x !== s.id)
-                            : [...(p.mensa_settimane || []), s.id]
-                        }))} />
-                      <span>🍽️ {s.label} — <b>€{PREZZO_MENSA_SETTIMANA}</b></span>
-                    </label>
-                  )
-                })}
-              </div>
-              {(form.mensa_settimane || []).length > 0 && (
-                <div style={{ marginTop: 8, padding: '8px 14px', background: '#fff8e1', borderRadius: 8, fontSize: '.85rem', color: '#e65100', fontWeight: 700 }}>
-                  🍽️ Mensa selezionata per {form.mensa_settimane.length} settimane → {fmt((form.mensa_settimane || []).length * PREZZO_MENSA_SETTIMANA)}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="form-group"><label className="form-label">Note aggiuntive</label><textarea className="form-textarea" value={form.note} onChange={e => set('note', e.target.value)} placeholder="Allergie, esigenze particolari..." /></div>
-          {(evento.metodi_pagamento || ['Contanti','POS/Carta','Bonifico']).length > 0 && (
-            <div className="form-group">
-              <label className="form-label">Metodo di pagamento *</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
-                {(evento.metodi_pagamento || ['Contanti','POS/Carta','Bonifico']).map(m => (
-                  <button key={m} type="button"
-                    className={`btn ${form.metodo_pagamento === m ? 'btn-primary' : 'btn-ghost'}`}
-                    onClick={() => set('metodo_pagamento', m)}>
-                    {m === 'Contanti' ? '💵 Contanti' : m === 'POS/Carta' ? '💳 POS/Carta' : '🏦 Bonifico'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="price-box">
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Riepilogo costi</div>
-            <div className="price-breakdown" style={{ lineHeight: 1.8 }}>
-              <div>Quota base: {fmt(evento.quota_base || 0)}</div>
-              {form.settimane.length > 0 && <div>Settimane ({form.settimane.length}): +{fmt(form.settimane.length * (evento.prezzo_settimana || 0))}</div>}
-              {(form.mensa_settimane||[]).length > 0 && <div>Mensa ({form.mensa_settimane.length} sett.): +{fmt(form.mensa_settimane.length * PREZZO_MENSA_SETTIMANA)}</div>}
-              {form.servizi.length > 0 && <div>Servizi extra: +{fmt((evento.servizi||[]).filter(s => !isMensaService(s) && form.servizi.includes(s.id)).reduce((a,s) => a + +s.prezzo, 0))}</div>}
-              {form.is_fratello && <div>Sconto fratello: −{fmt(evento.sconto_fratelli || 0)}</div>}
-            </div>
-            <div className="price-total">{fmt(calcTotale())}</div>
-          </div>
-        </>}
-        {step === 3 && <>
-          <h3 style={{ marginBottom: 20, color: 'var(--primary)' }}>✅ Consensi e invio</h3>
-          <div className="check-group">
-            <label className={`check-item ${form.consenso_privacy ? 'checked' : ''}`}>
-              <input type="checkbox" checked={form.consenso_privacy} onChange={e => set('consenso_privacy', e.target.checked)} />
-              <span>Acconsento al trattamento dei dati personali ai sensi del GDPR *</span>
-            </label>
-            <label className={`check-item ${form.consenso_foto ? 'checked' : ''}`}>
-              <input type="checkbox" checked={form.consenso_foto} onChange={e => set('consenso_foto', e.target.checked)} />
-              <span>Autorizzo la pubblicazione di foto/video del minore *</span>
-            </label>
-            <label className={`check-item ${form.consenso_regolamento ? 'checked' : ''}`}>
-              <input type="checkbox" checked={form.consenso_regolamento} onChange={e => set('consenso_regolamento', e.target.checked)} />
-              <span>Dichiaro di aver letto e accettato il regolamento dell'oratorio *</span>
-            </label>
-          </div>
-          <div className="price-box" style={{ marginTop: 20 }}>
-            <div style={{ fontWeight: 700, marginBottom: 4 }}>Totale iscrizione</div>
-            <div className="price-total">{fmt(calcTotale())}</div>
-          </div>
-        </>}
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'space-between', marginTop: 24 }}>
-          <button className="btn btn-ghost" onClick={step === 0 ? onBack : () => setStep(s => s - 1)}>← Indietro</button>
-          {step < stepNames.length - 1
-            ? <button className="btn btn-primary btn-lg"
-                onClick={() => setStep(s => s + 1)}
-                disabled={false}>
-                Continua →
-              </button>
-            : <button className="btn btn-success btn-lg" onClick={invia}
-                disabled={saving || !form.consenso_privacy || !form.nome_bambino || !form.email_genitore}>
-                {saving ? <><span className="spinner" /> Invio...</> : '📩 Invia iscrizione'}
-              </button>
-          }
+        ) : (
+          <>
+            {(evento.campi_extra || []).map(campo => (
+              <CampoExtra
+                key={campo.id}
+                campo={campo}
+                value={form.dati_extra[campo.id]}
+                onChange={val => setExtra(campo.id, val)}
+              />
+            ))}
+          </>
+        )}
+
+        <div className="modal-footer" style={{ marginTop: 24 }}>
+          <button className="btn btn-ghost" onClick={onBack}>Annulla</button>
+          <button className="btn btn-primary" onClick={invia} disabled={saving}>
+            {saving ? <><span className="spinner" /> Invio in corso...</> : '📤 Invia iscrizione'}
+          </button>
         </div>
       </div>
     </div>
