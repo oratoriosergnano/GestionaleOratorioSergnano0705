@@ -7253,7 +7253,10 @@ const CONFIG_DEFAULT_SALA = {
   prezzi: {
     'senza_riscaldamento': 80,
     'con_riscaldamento': 95,
-    'aggiunta_campetto': 20
+    'campetto_0_5h': 10,
+    'campetto_1h': 20,
+    'campetto_1_5h': 30,
+    'campetto_2h': 40
   },
   campi_extra: [],
   metodi_pagamento: ['Contanti','POS/Carta','Bonifico']
@@ -7320,7 +7323,17 @@ function AdminCampetto({ user, goPublic, goBack }) {
                   <tr key={p.id}>
                     <td><b>{p.nome}</b></td><td>{p.telefono}</td><td>{p.data}</td><td>{p.ora}</td><td>{p.durata}</td>
                     <td>{p.docce ? '✅' : '❌'}</td>
-                    <td><b style={{ color: 'var(--accent)' }}>{fmt(p.prezzo)}</b></td>
+                    <td>
+                      <input className="form-input" type="number" value={p.prezzo || 0}
+                        onChange={async (e) => {
+                          await supabase.from('prenotazioni_campetto').update({ prezzo: +e.target.value }).eq('id', p.id)
+                          logAudit({ user, azione: 'MODIFICA_PREZZO_CAMPETTO', categoria: 'Prenotazioni',
+                            dettaglio: `Modificato prezzo prenotazione campetto di ${p.nome} da ${p.prezzo} a ${e.target.value}`,
+                            meta: { id: p.id, nome: p.nome, data: p.data, nuovo_prezzo: +e.target.value, vecchio_prezzo: p.prezzo } })
+                          reload()
+                        }}
+                        style={{ maxWidth: 100, padding: '4px 8px' }} />
+                    </td>
                     <td>
                       {p.note_admin && (
                         <div style={{
@@ -7650,7 +7663,7 @@ function PubCampettoForm({ onBack, authUser, profilo }) {
     const { data: esistentiCamp } = await supabase
       .from('prenotazioni_campetto').select('ora, durata').eq('data', form.data)
     if (esistentiCamp && esistentiCamp.length > 0) {
-      const durMin = { '0.5h':30,'1h':60,'1.5h':90,'2h':120,'2.5h':150,'3h':180 }
+      const durMin = { '0.5h':30,'1h':60,'1.5h':90,'2h':120 }
       const toMs = (t) => { const [h,m] = t.split(':').map(Number); return h*60+m }
       const ns = toMs(form.ora); const ne = ns + (durMin[form.durata]||30)
       const conflitto = esistentiCamp.some(p => {
@@ -7837,13 +7850,24 @@ function AdminSala({ user, goPublic, goBack }) {
           {prenotazioni.length === 0
             ? <div className="alert alert-info">Nessuna prenotazione.</div>
             : <div className="table-wrap"><table>
-                <thead><tr><th>Nome</th><th>Data</th><th>Riscald.</th><th>Campetto</th><th>Persone</th><th>Prezzo</th><th></th></tr></thead>
+                <thead><tr><th>Nome</th><th>Data</th><th>Riscald.</th><th>Campetto</th><th>Durata</th><th>Persone</th><th>Prezzo</th><th></th></tr></thead>
                 <tbody>{prenotazioni.map(p => (
                   <tr key={p.id}>
                     <td><b>{p.nome}</b></td><td>{p.data}</td>
                     <td>{p.riscaldamento ? '✅' : '❌'}</td><td>{p.campetto ? '✅' : '❌'}</td>
+                    <td>{p.campetto ? (p.campetto_durata === '0.5h' ? '30 min' : p.campetto_durata) : '—'}</td>
                     <td>{p.persone}</td>
-                    <td><b style={{ color: 'var(--accent)' }}>{fmt(p.prezzo)}</b></td>
+                    <td>
+                      <input className="form-input" type="number" value={p.prezzo || 0}
+                        onChange={async (e) => {
+                          await supabase.from('prenotazioni_sala').update({ prezzo: +e.target.value }).eq('id', p.id)
+                          logAudit({ user, azione: 'MODIFICA_PREZZO_SALA', categoria: 'Prenotazioni',
+                            dettaglio: `Modificato prezzo prenotazione sala di ${p.nome} da ${p.prezzo} a ${e.target.value}`,
+                            meta: { id: p.id, nome: p.nome, data: p.data, nuovo_prezzo: +e.target.value, vecchio_prezzo: p.prezzo } })
+                          reload()
+                        }}
+                        style={{ maxWidth: 100, padding: '4px 8px' }} />
+                    </td>
                     <td>
                       {p.note_admin && (
                         <div style={{
@@ -7883,12 +7907,47 @@ function AdminSala({ user, goPublic, goBack }) {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditPrice(false)}>
           <div className="modal">
             <div className="modal-title">💰 Prezzi Sala Feste</div>
-            {Object.entries(prezzi).map(([k, v]) => (
-              <div className="form-group" key={k}>
-                <label className="form-label">{k.replace(/_/g, ' ')} (€)</label>
-                <input className="form-input" type="number" value={v} onChange={e => setPrezzi(p => ({ ...p, [k]: +e.target.value }))} />
+            
+            <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>Prezzi base</div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Senza riscaldamento €</label>
+                  <input className="form-input" type="number" value={prezzi['senza_riscaldamento']} onChange={e => setPrezzi(p => ({ ...p, 'senza_riscaldamento': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Con riscaldamento €</label>
+                  <input className="form-input" type="number" value={prezzi['con_riscaldamento']} onChange={e => setPrezzi(p => ({ ...p, 'con_riscaldamento': +e.target.value }))} />
+                </div>
               </div>
-            ))}
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>Aggiunte - Campetto</div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">30 minuti campetto €</label>
+                  <input className="form-input" type="number" value={prezzi['campetto_0_5h']} onChange={e => setPrezzi(p => ({ ...p, 'campetto_0_5h': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">1 ora campetto €</label>
+                  <input className="form-input" type="number" value={prezzi['campetto_1h']} onChange={e => setPrezzi(p => ({ ...p, 'campetto_1h': +e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">1.5 ore campetto €</label>
+                  <input className="form-input" type="number" value={prezzi['campetto_1_5h']} onChange={e => setPrezzi(p => ({ ...p, 'campetto_1_5h': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">2 ore campetto €</label>
+                  <input className="form-input" type="number" value={prezzi['campetto_2h']} onChange={e => setPrezzi(p => ({ ...p, 'campetto_2h': +e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setEditPrice(false)}>Annulla</button>
               <button className="btn btn-primary" onClick={async () => {
@@ -7940,7 +7999,7 @@ function AdminSala({ user, goPublic, goBack }) {
 // ─── PUBLIC: SALA ─────────────────────────────────────────────────────────────
 function PubSalaForm({ onBack, authUser, profilo }) {
   const [config, setConfig] = useState(null)
-  const [form, setForm] = useState({ nome: '', telefono: '', email: '', data: '', riscaldamento: false, campetto: false, persone: '', note: '', dati_extra: {}, metodo_pagamento: '', consenso_privacy: false })
+  const [form, setForm] = useState({ nome: '', telefono: '', email: '', data: '', riscaldamento: false, campetto: false, campetto_durata: '1h', persone: '', note: '', dati_extra: {}, metodo_pagamento: '', consenso_privacy: false })
   const [success, setSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
   const { isBloccata } = useDateBloccate()
@@ -7971,7 +8030,20 @@ function PubSalaForm({ onBack, authUser, profilo }) {
 
   if (!config) return <div className="public-page"><LoadingPage /></div>
   const p = config.prezzi
-  const calcPrezzo = () => (form.riscaldamento ? p.con_riscaldamento : p.senza_riscaldamento) + (form.campetto ? p.aggiunta_campetto : 0)
+  const calcPrezzo = () => {
+    const base = form.riscaldamento ? (p.con_riscaldamento || 0) : (p.senza_riscaldamento || 0)
+    let aggiuntaCampetto = 0
+    if (form.campetto) {
+      const mapPrezzi = {
+        '0.5h': p.campetto_0_5h || 10,
+        '1h': p.campetto_1h || 20,
+        '1.5h': p.campetto_1_5h || 30,
+        '2h': p.campetto_2h || 40
+      }
+      aggiuntaCampetto = mapPrezzi[form.campetto_durata] || 0
+    }
+    return base + aggiuntaCampetto
+  }
 
   const invia = async () => {
     setSaving(true)
@@ -8009,7 +8081,7 @@ function PubSalaForm({ onBack, authUser, profilo }) {
       </div>
       {form.email && <PushAttivaBtn externalId={`prenotante_${form.email.replace(/[^a-z0-9]/gi,'_')}`} />}
       <div style={{ marginTop: 20, display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center' }}>
-        <button className="btn btn-primary btn-lg" onClick={() => { setSuccess(false); setForm({ nome: '', telefono: '', email: '', data: '', riscaldamento: false, campetto: false, persone: '', note: '' }) }}>+ Nuova prenotazione</button>
+        <button className="btn btn-primary btn-lg" onClick={() => { setSuccess(false); setForm({ nome: '', telefono: '', email: '', data: '', riscaldamento: false, campetto: false, campetto_durata: '1h', persone: '', note: '', dati_extra: {}, metodo_pagamento: '', consenso_privacy: false }) }}>+ Nuova prenotazione</button>
         {authUser && <button className="btn btn-success btn-lg" onClick={() => { onBack(); setTimeout(() => window.dispatchEvent(new CustomEvent('goto-area-personale')), 100) }}>👤 La mia area →</button>}
         <button className="btn btn-ghost btn-lg" onClick={onBack}>← Home</button>
       </div>
@@ -8036,13 +8108,25 @@ function PubSalaForm({ onBack, authUser, profilo }) {
         <div className="check-group" style={{ marginBottom: 20 }}>
           <label className={`check-item ${form.riscaldamento ? 'checked' : ''}`}>
             <input type="checkbox" checked={form.riscaldamento} onChange={e => set('riscaldamento', e.target.checked)} />
-            <span>🔥 Riscaldamento (+{fmt(p.con_riscaldamento - p.senza_riscaldamento)})</span>
+            <span>🔥 Riscaldamento (+{fmt((p.con_riscaldamento || 0) - (p.senza_riscaldamento || 0))})</span>
           </label>
           <label className={`check-item ${form.campetto ? 'checked' : ''}`}>
             <input type="checkbox" checked={form.campetto} onChange={e => set('campetto', e.target.checked)} />
-            <span>⚽ Aggiungi campetto (+{fmt(p.aggiunta_campetto)})</span>
+            <span>⚽ Aggiungi campetto</span>
           </label>
         </div>
+        {form.campetto && (
+          <div className="form-group" style={{ marginBottom: 20 }}>
+            <label className="form-label">Durata campetto *</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {['0.5h','1h','1.5h','2h'].map(d => (
+                <button key={d} className={`btn ${form.campetto_durata === d ? 'btn-primary' : 'btn-ghost'}`} onClick={() => set('campetto_durata', d)}>
+                  {d === '0.5h' ? '30 min' : d}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="price-box" style={{ marginBottom: 20 }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Totale</div>
           <div className="price-total">{fmt(calcPrezzo())}</div>
