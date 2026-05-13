@@ -367,16 +367,18 @@ function useSupabaseData(table, options = {}) {
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(null)
 
+  const { select = '*', eq, order, asc = false, limit } = options
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     
     // Timeout di 5 secondi per le query
     const queryPromise = (async () => {
-      let q = supabase.from(table).select(options.select || '*')
-      if (options.eq) Object.entries(options.eq).forEach(([k, v]) => { q = q.eq(k, v) })
-      if (options.order) q = q.order(options.order, { ascending: options.asc ?? false })
-      if (options.limit) q = q.limit(options.limit)
+      let q = supabase.from(table).select(select)
+      if (eq) Object.entries(eq).forEach(([k, v]) => { q = q.eq(k, v) })
+      if (order) q = q.order(order, { ascending: asc })
+      if (limit) q = q.limit(limit)
       return await q
     })()
 
@@ -398,7 +400,7 @@ function useSupabaseData(table, options = {}) {
     } finally {
       setLoading(false)
     }
-  }, [table, JSON.stringify(options)]) // eslint-disable-line
+  }, [table, select, order, asc, limit, eq ? JSON.stringify(eq) : eq]) // eslint-disable-line
 
   useEffect(() => {
     let isMounted = true
@@ -945,7 +947,7 @@ export default function App() {
         <LoginGate authUser={authUser} titolo="iscriverti all'evento" icona="🎪"
           onLogin={() => setView({ type: 'login-utente', returnTo: { type: 'evento', id: view.id } })}
           onRegistrati={() => setView({ type: 'registrazione', returnTo: { type: 'evento', id: view.id } })}>
-          <PubEventoForm eventoId={view.id} onBack={goHome} authUser={authUser} profilo={profilo} />
+          <PubEventoForm eventoId={view.id} onBack={goHome} authUser={authUser} profilo={profilo} iscrizioneId={view.iscrizioneId} />
         </LoginGate>
       )}
       {view.type === 'campetto' && !isAdminDomain && (
@@ -2886,6 +2888,9 @@ function TabIscritti({ iscrizioni: iscrizioniRaw, evento, onReload, user }) {
   const [editForm,     setEditForm]     = useState({})
   const [editSaving,   setEditSaving]   = useState(false)
   const campiExtra = evento.campi_extra || []
+  const settimaneEvento = getWeeksInRange(evento.data_inizio, evento.data_fine)
+  const mensaServizio = (evento.servizi || []).find(s => s.nome?.toLowerCase().includes('mensa'))
+  const isMensaService = (s) => s.nome?.toLowerCase().includes('mensa')
 
   const [qrModal,     setQrModal]     = useState(null)
   const [tagModal,    setTagModal]    = useState(null)
@@ -2915,6 +2920,7 @@ function TabIscritti({ iscrizioni: iscrizioniRaw, evento, onReload, user }) {
 
   const apriModifica = (i) => {
     setEditForm({
+      _tab: 'bambino',
       nome_bambino:      i.nome_bambino || '',
       cognome_bambino:   i.cognome_bambino || '',
       data_nascita:      i.data_nascita || '',
@@ -2926,6 +2932,13 @@ function TabIscritti({ iscrizioni: iscrizioniRaw, evento, onReload, user }) {
       note:              i.note || '',
       metodo_pagamento:  i.metodo_pagamento || '',
       dati_extra:        i.dati_extra || {},
+      settimane:         i.settimane || [],
+      mensa_settimane:   i.mensa_settimane || [],
+      sacco_settimane:   i.sacco_settimane || [],
+      servizi:           i.servizi || [],
+      is_fratello:       i.is_fratello || false,
+      totale:            i.totale || 0,
+      saldato:           i.saldato || false,
     })
     setModalEdit(i)
   }
@@ -2945,6 +2958,13 @@ function TabIscritti({ iscrizioni: iscrizioniRaw, evento, onReload, user }) {
       note:              editForm.note || null,
       metodo_pagamento:  editForm.metodo_pagamento || null,
       dati_extra:        editForm.dati_extra || {},
+      settimane:         editForm.settimane || [],
+      mensa_settimane:   editForm.mensa_settimane || [],
+      sacco_settimane:   editForm.sacco_settimane || [],
+      servizi:           editForm.servizi || [],
+      is_fratello:       editForm.is_fratello || false,
+      totale:            editForm.totale || 0,
+      saldato:           editForm.saldato || false,
     }).eq('id', modalEdit.id)
     setEditSaving(false)
     if (error) { alert('Errore: ' + error.message); return }
@@ -3957,8 +3977,8 @@ ${resetLink}`
           <div className="modal" style={{ maxWidth: 600 }}>
             <div className="modal-title">✏️ Modifica — {modalEdit.nome_bambino} {modalEdit.cognome_bambino}</div>
             <div className="tabs" style={{ marginBottom: 20 }}>
-              {['bambino','genitore','extra'].map(t => {
-                const labels = { bambino: '👦 Bambino', genitore: '👨‍👩‍👧 Genitore', extra: '📋 Extra' }
+              {['bambino','genitore','iscrizione','extra'].map(t => {
+                const labels = { bambino: '👦 Bambino', genitore: '👨‍👩‍👧 Genitore', iscrizione: '📅 Iscrizione', extra: '📋 Extra' }
                 return (
                   <div key={t} className={`tab ${(editForm._tab||'bambino') === t ? 'active' : ''}`}
                     onClick={() => setEditForm(p => ({...p, _tab: t}))}>
@@ -4041,6 +4061,134 @@ ${resetLink}`
                   </div>
                 </div>
               </div>
+            )}
+
+            {(editForm._tab || 'bambino') === 'iscrizione' && (
+              <div>
+                {evento.campi_base?.settimane && settimaneEvento.length > 0 && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <div className="form-label" style={{ marginBottom: 8 }}>Settimane di partecipazione</div>
+                  <div className="check-group">
+                    {settimaneEvento.map(s => {
+                      const sel = (editForm.settimane || []).includes(s.id)
+                      return (
+                        <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`} style={{ marginBottom: 4 }}>
+                          <input type="checkbox" checked={sel}
+                            onChange={() => setEditForm(p => ({
+                              ...p,
+                              settimane: sel
+                                ? (p.settimane || []).filter(x => x !== s.id)
+                                : [...(p.settimane || []), s.id]
+                            }))} />
+                          <span>{s.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {evento.campi_base?.servizi && (evento.servizi || []).length > 0 && (
+                <div className="form-group" style={{ marginBottom: 16 }}>
+                  <div className="form-label" style={{ marginBottom: 8 }}>Servizi aggiuntivi</div>
+                  <div className="check-group">
+                    {(evento.servizi || []).filter(s => !isMensaService(s)).map(s => {
+                      const sel = (editForm.servizi || []).includes(s.id)
+                      return (
+                        <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`} style={{ marginBottom: 4 }}>
+                          <input type="checkbox" checked={sel}
+                            onChange={() => setEditForm(p => ({
+                              ...p,
+                              servizi: sel
+                                ? (p.servizi || []).filter(x => x !== s.id)
+                                : [...(p.servizi || []), s.id]
+                            }))} />
+                          <span>{s.nome} — {fmt(s.prezzo)}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {evento.campi_base?.mensa && mensaServizio && settimaneEvento.length > 0 && (
+                <>
+                  <div className="form-group" style={{ marginBottom: 16 }}>
+                    <div className="form-label" style={{ marginBottom: 8 }}>🍽️ Servizio Mensa</div>
+                    <div className="check-group">
+                      {settimaneEvento.map(s => {
+                        const sel = (editForm.mensa_settimane || []).includes(s.id)
+                        const hasSacco = (editForm.sacco_settimane || []).includes(s.id)
+                        return (
+                          <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`} style={{ marginBottom: 4, opacity: hasSacco ? 0.5 : 1 }}>
+                            <input type="checkbox" checked={sel} disabled={hasSacco}
+                              onChange={() => setEditForm(p => ({
+                                ...p,
+                                mensa_settimane: sel
+                                  ? (p.mensa_settimane || []).filter(x => x !== s.id)
+                                  : [...(p.mensa_settimane || []), s.id],
+                                sacco_settimane: sel ? p.sacco_settimane : (p.sacco_settimane || []).filter(x => x !== s.id)
+                              }))} />
+                            <span>🍽️ {s.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="form-group" style={{ marginBottom: 16 }}>
+                    <div className="form-label" style={{ marginBottom: 8 }}>🎒 Pranzo al Sacco</div>
+                    <div className="check-group">
+                      {settimaneEvento.map(s => {
+                        const sel = (editForm.sacco_settimane || []).includes(s.id)
+                        const hasMensa = (editForm.mensa_settimane || []).includes(s.id)
+                        return (
+                          <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`} style={{ marginBottom: 4, borderColor: sel ? '#2ecc71' : undefined, background: sel ? '#d1fae5' : undefined, opacity: hasMensa ? 0.5 : 1 }}>
+                            <input type="checkbox" checked={sel} disabled={hasMensa}
+                              onChange={() => setEditForm(p => ({
+                                ...p,
+                                sacco_settimane: sel
+                                  ? (p.sacco_settimane || []).filter(x => x !== s.id)
+                                  : [...(p.sacco_settimane || []), s.id],
+                                mensa_settimane: sel ? p.mensa_settimane : (p.mensa_settimane || []).filter(x => x !== s.id)
+                              }))} />
+                            <span>🎒 {s.label}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <label className={`check-item ${editForm.is_fratello ? 'checked' : ''}`} style={{ marginBottom: 12 }}>
+                <input type="checkbox" checked={editForm.is_fratello}
+                  onChange={e => setEditForm(p => ({...p, is_fratello: e.target.checked}))} />
+                <span>Sconto fratello/sorella</span>
+              </label>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Totale iscrizione (€)</label>
+                  <input className="form-input" type="number" step="0.01" value={editForm.totale}
+                    onChange={e => setEditForm(p => ({...p, totale: +e.target.value}))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Stato pagamento</label>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                    <button type="button"
+                      className={`btn btn-sm ${editForm.saldato ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => setEditForm(p => ({...p, saldato: true}))}>
+                      ✅ Saldato
+                    </button>
+                    <button type="button"
+                      className={`btn btn-sm ${!editForm.saldato ? 'btn-primary' : 'btn-ghost'}`}
+                      onClick={() => setEditForm(p => ({...p, saldato: false}))}>
+                      ⏳ Da saldare
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
             )}
 
             {(editForm._tab || 'bambino') === 'extra' && (
@@ -5053,12 +5201,18 @@ function TabBuoniPasto({ iscrizioni, evento, user }) {
             </div>
             <div className="form-group">
               <label className="form-label">Quantità buoni da aggiungere</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 {[1,5,10,20].map(q => (
                   <button key={q} type="button" className={`btn ${addQta === q ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setAddQta(q)}>
                     {q}
                   </button>
                 ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Oppure inserisci manualmente:</span>
+                <input className="form-input" type="number" min="1" value={addQta}
+                  onChange={e => setAddQta(Math.max(1, parseInt(e.target.value || 1)))}
+                  style={{ width: 120 }} />
               </div>
             </div>
             <div style={{ background: 'var(--primary-pale)', borderRadius: 10, padding: '10px 16px', marginBottom: 16 }}>
@@ -5097,7 +5251,7 @@ function TabBuoniPasto({ iscrizioni, evento, user }) {
             </div>
             <div className="form-group">
               <label className="form-label">Quantità da scalare</label>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 {[1,2,3,5,10].map(q => (
                   <button key={q} type="button"
                     className={`btn ${scalaQta === q ? 'btn-danger' : 'btn-ghost'}`}
@@ -5105,6 +5259,12 @@ function TabBuoniPasto({ iscrizioni, evento, user }) {
                     {q}
                   </button>
                 ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Oppure inserisci manualmente:</span>
+                <input className="form-input" type="number" min="1" value={scalaQta}
+                  onChange={e => setScalaQta(Math.max(1, parseInt(e.target.value || 1)))}
+                  style={{ width: 120 }} />
               </div>
             </div>
             <div style={{ background: '#fff3f3', border: '1.5px solid var(--danger)', borderRadius: 10, padding: '10px 16px', marginBottom: 16 }}>
@@ -5973,7 +6133,7 @@ function ModalEditEvento({ evento, onClose, user }) {
 }
 
 // ─── PUBLIC: EVENTO ───────────────────────────────────────────────────────────
-function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
+function PubEventoForm({ eventoId, onBack, authUser, profilo, iscrizioneId }) {
   const [evento, setEvento] = useState(null)
   const [loading, setLoading] = useState(true)
   const [step, setStep] = useState(0)
@@ -5982,7 +6142,7 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
   const [form, setForm] = useState({
     nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '',
     nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '',
-    settimane: [], servizi: [], mensa_settimane: [], is_fratello: false, note: '',
+    settimane: [], servizi: [], mensa_settimane: [], sacco_settimane: [], is_fratello: false, note: '',
     consenso_privacy: false, consenso_foto: false, consenso_regolamento: false,
     dati_extra: {},
     metodo_pagamento: '',
@@ -5993,19 +6153,52 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
   const setExtra = (id, val) => setForm(p => ({ ...p, dati_extra: { ...p.dati_extra, [id]: val } }))
 
   useEffect(() => {
-    supabase.from('eventi').select('*').eq('id', eventoId).single()
-      .then(({ data }) => { setEvento(data); setLoading(false) })
-    // Pre-compila dati genitore dall'account loggato
-    if (authUser && profilo) {
-      setForm(p => ({
-        ...p,
-        nome_genitore:     profilo.nome    || '',
-        cognome_genitore:  profilo.cognome || '',
-        email_genitore:    authUser.email  || '',
-        telefono_genitore: profilo.telefono || '',
-      }))
+    const init = async () => {
+      setLoading(true)
+      const { data: ev } = await supabase.from('eventi').select('*').eq('id', eventoId).single()
+      setEvento(ev)
+
+      if (iscrizioneId) {
+        const { data: iscr } = await supabase.from('iscrizioni').select('*').eq('id', iscrizioneId).single()
+        if (iscr) {
+          setForm({
+            nome_bambino: iscr.nome_bambino || '',
+            cognome_bambino: iscr.cognome_bambino || '',
+            data_nascita: iscr.data_nascita || '',
+            comune_residenza: iscr.comune_residenza || '',
+            nome_genitore: iscr.nome_genitore || '',
+            cognome_genitore: iscr.cognome_genitore || '',
+            email_genitore: iscr.email_genitore || '',
+            telefono_genitore: iscr.telefono_genitore || '',
+            settimane: iscr.settimane || [],
+            servizi: iscr.servizi || [],
+            mensa_settimane: iscr.mensa_settimane || [],
+            sacco_settimane: iscr.sacco_settimane || [],
+            is_fratello: iscr.is_fratello || false,
+            note: iscr.note || '',
+            consenso_privacy: iscr.consenso_privacy || false,
+            consenso_foto: iscr.consenso_foto || false,
+            consenso_regolamento: iscr.consenso_regolamento || false,
+            dati_extra: iscr.dati_extra || {},
+            metodo_pagamento: iscr.metodo_pagamento || '',
+          })
+        }
+      } else {
+        // Pre-compila dati genitore dall'account loggato
+        if (authUser && profilo) {
+          setForm(p => ({
+            ...p,
+            nome_genitore:     profilo.nome    || '',
+            cognome_genitore:  profilo.cognome || '',
+            email_genitore:    authUser.email  || '',
+            telefono_genitore: profilo.telefono || '',
+          }))
+        }
+      }
+      setLoading(false)
     }
-  }, [eventoId, authUser, profilo]) // eslint-disable-line
+    init()
+  }, [eventoId, authUser, profilo, iscrizioneId]) // eslint-disable-line
 
   if (loading) return <div className="public-page"><LoadingPage text="Caricamento evento..." /></div>
   if (!evento) return <div className="public-page"><div className="alert alert-danger">Evento non trovato.</div><button className="btn btn-ghost" onClick={onBack}>← Indietro</button></div>
@@ -6039,40 +6232,53 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
       evento_id: evento.id,
       totale: calcTotale(),
       email_genitore: (form.email_genitore || '').trim().toLowerCase(),
-      saldato: false,
       utente_id: authUser?.id || null
     }
-    const { error: errIscr } = await supabase.from('iscrizioni').insert([dati])
-    if (errIscr) { alert('Errore nell\'iscrizione: ' + errIscr.message); setSaving(false); return }
-    logAudit({ user: { nome: `${dati.nome_genitore || ''} ${dati.cognome_genitore || ''}`.trim(), email: dati.email_genitore || '', id: null },
-      azione: 'NUOVA_ISCRIZIONE', categoria: 'Iscrizioni',
-      dettaglio: `Nuova iscrizione: ${dati.nome_bambino} ${dati.cognome_bambino} a "${evento.nome}" — ${fmt(dati.totale)}`,
-      meta: { nome_bambino: dati.nome_bambino, cognome_bambino: dati.cognome_bambino,
-        evento_id: dati.evento_id, totale: dati.totale } })
-    sendPushNotification({
-      titolo: '📋 Nuova iscrizione',
-      corpo:  `${dati.nome_bambino} ${dati.cognome_bambino} si è iscritto/a a "${evento.nome}"`,
-      target_tipo: 'superadmin',
-    })
+
+    if (iscrizioneId) {
+      // Aggiorna iscrizione esistente
+      const { error: errIscr } = await supabase.from('iscrizioni').update(dati).eq('id', iscrizioneId)
+      if (errIscr) { alert('Errore nella modifica: ' + errIscr.message); setSaving(false); return }
+      logAudit({ user: { nome: `${dati.nome_genitore || ''} ${dati.cognome_genitore || ''}`.trim(), email: dati.email_genitore || '', id: null },
+        azione: 'MODIFICA_ISCRIZIONE', categoria: 'Iscritti',
+        dettaglio: `Modifica iscrizione: ${dati.nome_bambino} ${dati.cognome_bambino} a "${evento.nome}" — ${fmt(dati.totale)}`,
+        meta: { nome_bambino: dati.nome_bambino, cognome_bambino: dati.cognome_bambino,
+          evento_id: dati.evento_id, totale: dati.totale } })
+    } else {
+      // Crea nuova iscrizione
+      dati.saldato = false
+      const { error: errIscr } = await supabase.from('iscrizioni').insert([dati])
+      if (errIscr) { alert('Errore nell\'iscrizione: ' + errIscr.message); setSaving(false); return }
+      logAudit({ user: { nome: `${dati.nome_genitore || ''} ${dati.cognome_genitore || ''}`.trim(), email: dati.email_genitore || '', id: null },
+        azione: 'NUOVA_ISCRIZIONE', categoria: 'Iscrizioni',
+        dettaglio: `Nuova iscrizione: ${dati.nome_bambino} ${dati.cognome_bambino} a "${evento.nome}" — ${fmt(dati.totale)}`,
+        meta: { nome_bambino: dati.nome_bambino, cognome_bambino: dati.cognome_bambino,
+          evento_id: dati.evento_id, totale: dati.totale } })
+      sendPushNotification({
+        titolo: '📋 Nuova iscrizione',
+        corpo:  `${dati.nome_bambino} ${dati.cognome_bambino} si è iscritto/a a "${evento.nome}"`,
+        target_tipo: 'superadmin',
+      })
+    }
     setSaving(false); setSuccess(true)
   }
 
   const resetForm = () => {
     setSuccess(false); setStep(0)
-    setForm({ nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '', nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '', settimane: [], servizi: [], mensa_settimane: [], is_fratello: false, note: '', consenso_privacy: false, consenso_foto: false, consenso_regolamento: false, dati_extra: {}, metodo_pagamento: '' })
+    setForm({ nome_bambino: '', cognome_bambino: '', data_nascita: '', comune_residenza: '', nome_genitore: '', cognome_genitore: '', email_genitore: '', telefono_genitore: '', settimane: [], servizi: [], mensa_settimane: [], sacco_settimane: [], is_fratello: false, note: '', consenso_privacy: false, consenso_foto: false, consenso_regolamento: false, dati_extra: {}, metodo_pagamento: '' })
   }
 
   if (success) return (
     <div className="public-page"><div style={{ textAlign: 'center', padding: 48 }}>
       <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎉</div>
-      <h2 style={{ color: 'var(--primary)', marginBottom: 8 }}>Iscrizione inviata!</h2>
-      <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>Grazie! Iscrizione per <b>{evento.nome}</b> registrata correttamente.</p>
+      <h2 style={{ color: 'var(--primary)', marginBottom: 8 }}>{iscrizioneId ? 'Modifica salvata!' : 'Iscrizione inviata!'}</h2>
+      <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>Grazie! {iscrizioneId ? 'Modifica per' : 'Iscrizione per'} <b>{evento.nome}</b> registrata correttamente.</p>
       <div className="price-box" style={{ maxWidth: 300, margin: '0 auto 24px' }}>
         <div className="price-total">{fmt(calcTotale())}</div>
         <div className="price-breakdown">Totale da versare</div>
       </div>
       <div style={{ display:'flex', gap:10, flexWrap:'wrap', justifyContent:'center' }}>
-        <button className="btn btn-primary btn-lg" onClick={resetForm}>+ Nuova iscrizione</button>
+        {!iscrizioneId && <button className="btn btn-primary btn-lg" onClick={resetForm}>+ Nuova iscrizione</button>}
         {authUser && <button className="btn btn-success btn-lg" onClick={() => { onBack(); setTimeout(() => window.dispatchEvent(new CustomEvent('goto-area-personale')), 100) }}>👤 La mia area →</button>}
         <button className="btn btn-ghost btn-lg" onClick={onBack}>← Home</button>
       </div>
@@ -6086,7 +6292,7 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
       </div>
       <div className="public-header">
         <img src="/logo-oratorio.png" alt="Logo Oratorio" style={{ width: 120, height: 'auto', objectFit: 'contain', marginBottom: 8 }} />
-        <h1>Iscrizione: {evento.nome}</h1>
+        <h1>{iscrizioneId ? 'Modifica iscrizione' : 'Iscrizione'}: {evento.nome}</h1>
         <p>📅 {evento.data_inizio} → {evento.data_fine} · Oratorio di Sergnano</p>
         {evento.descrizione && <p style={{ marginTop: 8, fontStyle: 'italic' }}>{evento.descrizione}</p>}
       </div>
@@ -6220,35 +6426,70 @@ function PubEventoForm({ eventoId, onBack, authUser, profilo }) {
             </div>
           </>}
           {evento.campi_base?.mensa && mensaServizio && settimane.length > 0 && (
-            <div style={{ marginBottom: 20 }}>
-              <div className="form-label" style={{ marginBottom: 4 }}>🍽️ Servizio Mensa</div>
-              <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>
-                Seleziona le settimane in cui il bambino usufruirà della mensa — <b>€{PREZZO_MENSA_SETTIMANA} per settimana</b>
-              </div>
-              <div className="check-group">
-                {settimane.map(s => {
-                  const sel = (form.mensa_settimane || []).includes(s.id)
-                  return (
-                    <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`}
-                      style={{ borderColor: sel ? '#e67e22' : undefined, background: sel ? '#fff8e1' : undefined }}>
-                      <input type="checkbox" checked={sel}
-                        onChange={() => setForm(p => ({
-                          ...p,
-                          mensa_settimane: sel
-                            ? p.mensa_settimane.filter(x => x !== s.id)
-                            : [...(p.mensa_settimane || []), s.id]
-                        }))} />
-                      <span>🍽️ {s.label} — <b>€{PREZZO_MENSA_SETTIMANA}</b></span>
-                    </label>
-                  )
-                })}
-              </div>
-              {(form.mensa_settimane || []).length > 0 && (
-                <div style={{ marginTop: 8, padding: '8px 14px', background: '#fff8e1', borderRadius: 8, fontSize: '.85rem', color: '#e65100', fontWeight: 700 }}>
-                  🍽️ Mensa selezionata per {form.mensa_settimane.length} settimane → {fmt((form.mensa_settimane || []).length * PREZZO_MENSA_SETTIMANA)}
+            <>
+              <div style={{ marginBottom: 20 }}>
+                <div className="form-label" style={{ marginBottom: 4 }}>🍽️ Servizio Mensa</div>
+                <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                  Seleziona le settimane in cui il bambino usufruirà della mensa — <b>€{PREZZO_MENSA_SETTIMANA} per settimana</b>
                 </div>
-              )}
-            </div>
+                <div className="check-group">
+                  {settimane.map(s => {
+                    const sel = (form.mensa_settimane || []).includes(s.id)
+                    const hasSacco = (form.sacco_settimane || []).includes(s.id)
+                    return (
+                      <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`}
+                        style={{ borderColor: sel ? '#e67e22' : undefined, background: sel ? '#fff8e1' : undefined, opacity: hasSacco ? 0.5 : 1 }}>
+                        <input type="checkbox" checked={sel} disabled={hasSacco}
+                          onChange={() => setForm(p => ({
+                            ...p,
+                            mensa_settimane: sel
+                              ? p.mensa_settimane.filter(x => x !== s.id)
+                              : [...(p.mensa_settimane || []), s.id],
+                            sacco_settimane: sel ? p.sacco_settimane : p.sacco_settimane.filter(x => x !== s.id)
+                          }))} />
+                        <span>🍽️ {s.label} — <b>€{PREZZO_MENSA_SETTIMANA}</b></span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {(form.mensa_settimane || []).length > 0 && (
+                  <div style={{ marginTop: 8, padding: '8px 14px', background: '#fff8e1', borderRadius: 8, fontSize: '.85rem', color: '#e65100', fontWeight: 700 }}>
+                    🍽️ Mensa selezionata per {form.mensa_settimane.length} settimane → {fmt((form.mensa_settimane || []).length * PREZZO_MENSA_SETTIMANA)}
+                  </div>
+                )}
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <div className="form-label" style={{ marginBottom: 4 }}>🎒 Pranzo al Sacco</div>
+                <div style={{ fontSize: '.85rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                  Seleziona le settimane in cui il bambino porterà il pranzo al sacco
+                </div>
+                <div className="check-group">
+                  {settimane.map(s => {
+                    const sel = (form.sacco_settimane || []).includes(s.id)
+                    const hasMensa = (form.mensa_settimane || []).includes(s.id)
+                    return (
+                      <label key={s.id} className={`check-item ${sel ? 'checked' : ''}`}
+                        style={{ borderColor: sel ? '#2ecc71' : undefined, background: sel ? '#d1fae5' : undefined, opacity: hasMensa ? 0.5 : 1 }}>
+                        <input type="checkbox" checked={sel} disabled={hasMensa}
+                          onChange={() => setForm(p => ({
+                            ...p,
+                            sacco_settimane: sel
+                              ? p.sacco_settimane.filter(x => x !== s.id)
+                              : [...(p.sacco_settimane || []), s.id],
+                            mensa_settimane: sel ? p.mensa_settimane : p.mensa_settimane.filter(x => x !== s.id)
+                          }))} />
+                        <span>🎒 {s.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+                {(form.sacco_settimane || []).length > 0 && (
+                  <div style={{ marginTop: 8, padding: '8px 14px', background: '#d1fae5', borderRadius: 8, fontSize: '.85rem', color: '#065f46', fontWeight: 700 }}>
+                    🎒 Pranzo al sacco selezionato per {form.sacco_settimane.length} settimane
+                  </div>
+                )}
+              </div>
+            </>
           )}
           {evento.campi_base?.note && (
             <div className="form-group"><label className="form-label">Note aggiuntive</label><textarea className="form-textarea" value={form.note} onChange={e => set('note', e.target.value)} placeholder="Allergie, esigenze particolari..." /></div>
@@ -7071,6 +7312,71 @@ function IscrizioneCardEstesa({ i, goTo, dati }) {
   const presenti = appello.filter(a => a.presenza === 'P').length
   const mensaCount = appello.filter(a => a.pranzo === 'mensa').length
 
+  const scaricaRicevuta = () => {
+    const data = new Date().toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+    const dataNascita = i.data_nascita || '—'
+    const settimane = (i.settimane || []).map(s => `Sett. ${s}`).join(', ') || '—'
+    const mensaSettimane = (i.mensa_settimane || []).map(s => `Sett. ${s}`).join(', ') || '—'
+    const saccoSettimane = (i.sacco_settimane || []).map(s => `Sett. ${s}`).join(', ') || '—'
+    const servizi = (i.servizi || []).map(sid => {
+      const serv = (ev.servizi || []).find(s => s.id === sid)
+      return serv ? serv.nome : sid
+    }).join(', ') || '—'
+
+    const html = `
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Ricevuta Fiscale</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; }
+    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 20px; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .dati { margin-bottom: 20px; }
+    .row { display: flex; margin-bottom: 8px; }
+    .label { width: 200px; font-weight: bold; }
+    .value { flex: 1; }
+    .totale { margin-top: 30px; padding-top: 10px; border-top: 2px solid #000; font-size: 18px; font-weight: bold; text-align: right; }
+    .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Oratorio di Sergnano</h1>
+    <p>Ricevuta Fiscale</p>
+    <p>Data: ${data}</p>
+  </div>
+  <div class="dati">
+    <div class="row"><div class="label">Nome bambino:</div><div class="value">${i.nome_bambino || ''} ${i.cognome_bambino || ''}</div></div>
+    <div class="row"><div class="label">Data di nascita:</div><div class="value">${dataNascita}</div></div>
+    <div class="row"><div class="label">Genitore:</div><div class="value">${i.nome_genitore || ''} ${i.cognome_genitore || ''}</div></div>
+    <div class="row"><div class="label">Email:</div><div class="value">${i.email_genitore || ''}</div></div>
+    <div class="row"><div class="label">Telefono:</div><div class="value">${i.telefono_genitore || ''}</div></div>
+    <hr style="margin:20px 0;border:none;border-bottom:1px solid #ddd">
+    <div class="row"><div class="label">Evento:</div><div class="value">${ev.nome || 'Evento'}</div></div>
+    <div class="row"><div class="label">Periodo evento:</div><div class="value">${ev.data_inizio || ''} → ${ev.data_fine || ''}</div></div>
+    <div class="row"><div class="label">Settimane di partecipazione:</div><div class="value">${settimane}</div></div>
+    <div class="row"><div class="label">Servizi aggiuntivi:</div><div class="value">${servizi}</div></div>
+    <div class="row"><div class="label">Mensa:</div><div class="value">${mensaSettimane}</div></div>
+    <div class="row"><div class="label">Pranzo al sacco:</div><div class="value">${saccoSettimane}</div></div>
+    <div class="row"><div class="label">Sconto fratello:</div><div class="value">${i.is_fratello ? 'Sì' : 'No'}</div></div>
+    <div class="row"><div class="label">Note:</div><div class="value">${i.note || '—'}</div></div>
+  </div>
+  <div class="totale">Totale: €${Number(i.totale || 0).toFixed(2)}</div>
+  <div class="totale" style="font-size:16px; margin-top:10px;">Stato pagamento: ${i.saldato ? 'Saldato' : 'Da saldare'}</div>
+  <div class="footer">
+    Oratorio di Sergnano - Via Roma, 1 - 20030 Sergnano (MI) - P.IVA 01234567890
+  </div>
+</body>
+</html>
+    `
+    const blob = new Blob([html], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const w = window.open(url, '_blank')
+    setTimeout(() => { w?.print() }, 500)
+  }
+
   return (
     <div style={{
       background: '#fff', borderRadius: 14, marginBottom: 12,
@@ -7147,12 +7453,20 @@ function IscrizioneCardEstesa({ i, goTo, dati }) {
             </div>
           )}
         </div>
-        <button
-          className="btn btn-ghost btn-sm"
-          style={{ marginTop:8, fontSize:'.78rem' }}
-          onClick={() => setExpanded(e => !e)}>
-          {expanded ? '▲ Meno dettagli' : '▼ Vedi dettagli'}
-        </button>
+        <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+          <button
+            className="btn btn-ghost btn-sm"
+            style={{ fontSize:'.78rem' }}
+            onClick={() => setExpanded(e => !e)}>
+            {expanded ? '▲ Meno dettagli' : '▼ Vedi dettagli'}
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            style={{ fontSize:'.78rem' }}
+            onClick={scaricaRicevuta}>
+            📄 Scarica ricevuta fiscale
+          </button>
+        </div>
       </div>
 
       {/* Dettagli espandibili */}
@@ -7202,7 +7516,7 @@ function IscrizioneCardEstesa({ i, goTo, dati }) {
           )}
           {/* Mensa settimane */}
           {(i.mensa_settimane||[]).length > 0 && (
-            <div style={{ marginBottom: 14 }}>
+            <div style={{ marginBottom: 10 }}>
               <div style={{ fontWeight:700, fontSize:'.82rem', marginBottom:5, color:'var(--text-muted)' }}>
                 Mensa prenotata per
               </div>
@@ -7216,14 +7530,36 @@ function IscrizioneCardEstesa({ i, goTo, dati }) {
               </div>
             </div>
           )}
-          {/* Bottone acquisto buoni */}
+          {/* Pranzo al sacco settimane */}
+          {(i.sacco_settimane||[]).length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontWeight:700, fontSize:'.82rem', marginBottom:5, color:'var(--text-muted)' }}>
+                Pranzo al sacco prenotato per
+              </div>
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                {(i.sacco_settimane||[]).map(s => (
+                  <span key={s} style={{ background:'#d1fae5', color:'#065f46',
+                    borderRadius:20, padding:'2px 10px', fontSize:'.76rem', fontWeight:700 }}>
+                    🎒 Sett. {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* Bottone acquisto buoni e modifica iscrizione */}
           {goTo && (
-            <button
-              className="btn btn-primary btn-sm"
-              style={{ marginTop: 8 }}
-              onClick={() => goTo('buoni', i.evento_id, { iscrizioneId: i.id })}>
-              🎟️ {buoni === 0 ? 'Ricarica buoni pasto' : buoni > 0 ? `Gestisci buoni (${buoni} rimasti)` : 'Acquista buoni pasto'}
-            </button>
+            <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => goTo('buoni', i.evento_id, { iscrizioneId: i.id })}>
+                🎟️ {buoni === 0 ? 'Ricarica buoni pasto' : buoni > 0 ? `Gestisci buoni (${buoni} rimasti)` : 'Acquista buoni pasto'}
+              </button>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => goTo('evento', i.evento_id, { iscrizioneId: i.id })}>
+                ✏️ Modifica iscrizione
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -9070,11 +9406,17 @@ function PubBuoniForm({ eventoId, iscrizioneId, onBack }) {
           </div>
           <div className="form-group">
             <label className="form-label">Quantità buoni da acquistare *</label>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               {[1,5,10,20].map(q => (
                 <button key={q} type="button" className={`btn ${quantita === q ? 'btn-primary' : 'btn-ghost'}`}
                   onClick={() => setQuantita(q)}>{q} {q === 1 ? 'buono' : 'buoni'}</button>
               ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: '.85rem', color: 'var(--text-muted)' }}>Oppure inserisci manualmente:</span>
+              <input className="form-input" type="number" min="1" value={quantita}
+                onChange={e => setQuantita(Math.max(1, parseInt(e.target.value || 1)))}
+                style={{ width: 120 }} />
             </div>
           </div>
           <div className="price-box" style={{ marginBottom: 20 }}>
