@@ -3153,6 +3153,258 @@ function TabIscritti({ iscrizioni: iscrizioniRaw, evento, onReload, user }) {
     onReload()
   }
 
+  const stampaScheda = (i) => {
+    // Crea il contenuto di stampa
+    const contenuto = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Scheda Iscrizione - ${i.nome_bambino} ${i.cognome_bambino}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Arial', sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      font-size: 14px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 2px solid #000;
+    }
+    .header h1 {
+      margin: 0 0 10px 0;
+      font-size: 24px;
+      text-transform: uppercase;
+    }
+    .header h2 {
+      margin: 0 0 5px 0;
+      font-size: 18px;
+      font-weight: normal;
+    }
+    .header p {
+      margin: 5px 0;
+      font-size: 13px;
+      color: #444;
+    }
+    .section {
+      margin-bottom: 25px;
+    }
+    .section-title {
+      font-size: 16px;
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid #000;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 15px;
+    }
+    .field {
+      margin-bottom: 10px;
+    }
+    .field-label {
+      font-weight: bold;
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+    .field-value {
+      font-size: 14px;
+      min-height: 20px;
+      border-bottom: 1px solid #000;
+      padding-bottom: 3px;
+    }
+    .signature-section {
+      margin-top: 40px;
+      page-break-inside: avoid;
+    }
+    .signature-block {
+      margin-top: 30px;
+      text-align: center;
+    }
+    .signature-line {
+      border-top: 1px solid #000;
+      width: 250px;
+      margin: 60px auto 10px auto;
+    }
+    .signature-label {
+      font-weight: bold;
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #000;
+      text-align: center;
+      font-size: 11px;
+      color: #666;
+    }
+    @media print {
+      body { margin: 0; padding: 15mm; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>ORATORIO DI SERGNANO</h1>
+    <h2>SCHEDA ISCRIZIONE</h2>
+    <p><strong>Evento:</strong> ${evento.nome}</p>
+    <p><strong>Periodo:</strong> ${evento.data_inizio} - ${evento.data_fine}</p>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Dati del bambino/ragazzo</div>
+    <div class="grid-2">
+      ${i.nome_bambino ? `
+      <div class="field">
+        <div class="field-label">Nome</div>
+        <div class="field-value">${i.nome_bambino || ''}</div>
+      </div>` : ''}
+      ${i.cognome_bambino ? `
+      <div class="field">
+        <div class="field-label">Cognome</div>
+        <div class="field-value">${i.cognome_bambino || ''}</div>
+      </div>` : ''}
+      ${i.data_nascita ? `
+      <div class="field">
+        <div class="field-label">Data di nascita</div>
+        <div class="field-value">${i.data_nascita || ''}</div>
+      </div>` : ''}
+      ${i.comune_residenza ? `
+      <div class="field">
+        <div class="field-label">Comune di residenza</div>
+        <div class="field-value">${i.comune_residenza || ''}</div>
+      </div>` : ''}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Dati del genitore/tutore</div>
+    <div class="grid-2">
+      ${i.nome_genitore ? `
+      <div class="field">
+        <div class="field-label">Nome</div>
+        <div class="field-value">${i.nome_genitore || ''}</div>
+      </div>` : ''}
+      ${i.cognome_genitore ? `
+      <div class="field">
+        <div class="field-label">Cognome</div>
+        <div class="field-value">${i.cognome_genitore || ''}</div>
+      </div>` : ''}
+      ${i.email_genitore ? `
+      <div class="field">
+        <div class="field-label">Email</div>
+        <div class="field-value">${i.email_genitore || ''}</div>
+      </div>` : ''}
+      ${i.telefono_genitore ? `
+      <div class="field">
+        <div class="field-label">Telefono</div>
+        <div class="field-value">${i.telefono_genitore || ''}</div>
+      </div>` : ''}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Iscrizione</div>
+    ${(i.settimane || []).length > 0 ? `
+    <div class="field">
+      <div class="field-label">Settimane di partecipazione</div>
+      <div class="field-value">${(i.settimane || []).map(s => 'Settimana ' + s).join(', ') || ''}</div>
+    </div>` : ''}
+    ${(i.servizi || []).length > 0 ? `
+    <div class="field">
+      <div class="field-label">Servizi aggiuntivi</div>
+      <div class="field-value">
+        ${(() => {
+          const serviziMap = {};
+          (evento.servizi || []).forEach(s => serviziMap[s.id] = s.nome);
+          return (i.servizi || []).map(id => serviziMap[id] || id).join(', ');
+        })() || ''}
+      </div>
+    </div>` : ''}
+    ${(i.mensa_settimane || []).length > 0 ? `
+    <div class="field">
+      <div class="field-label">Mensa (settimane)</div>
+      <div class="field-value">${(i.mensa_settimane || []).map(s => 'Settimana ' + s).join(', ') || ''}</div>
+    </div>` : ''}
+    ${i.is_fratello ? `
+    <div class="field">
+      <div class="field-label">Sconto fratello/sorella</div>
+      <div class="field-value">Sì</div>
+    </div>` : ''}
+    ${i.note ? `
+    <div class="field">
+      <div class="field-label">Note aggiuntive</div>
+      <div class="field-value">${i.note || ''}</div>
+    </div>` : ''}
+    <div class="field">
+      <div class="field-label">Totale iscrizione</div>
+      <div class="field-value">€ ${i.totale ? i.totale.toFixed(2) : '0,00'}</div>
+    </div>
+    <div class="field">
+      <div class="field-label">Saldato</div>
+      <div class="field-value">${i.saldato ? 'Sì' : 'No'}</div>
+    </div>
+  </div>
+
+  ${(i.dati_extra && Object.keys(i.dati_extra).length > 0) ? `
+  <div class="section">
+    <div class="section-title">Altre informazioni</div>
+    ${(evento.campi_extra || []).map(campo => {
+      if (!i.dati_extra || typeof i.dati_extra[campo.id] === 'undefined') return '';
+      let valore = i.dati_extra[campo.id];
+      if (campo.tipo === 'checkbox') valore = valore ? 'Sì' : 'No';
+      return '<div class="field"><div class="field-label">' + campo.label + '</div><div class="field-value">' + (valore || '') + '</div></div>';
+    }).join('')}
+  </div>` : ''}
+
+  <div class="signature-section">
+    <div class="section-title">Firme</div>
+    
+    <div class="signature-block">
+      <div class="signature-line"></div>
+      <div class="signature-label">Firma genitore/tutore</div>
+    </div>
+    
+    <div class="signature-block" style="margin-top: 50px;">
+      <div class="signature-line"></div>
+      <div class="signature-label">Firma responsabile oratorio</div>
+      <div style="margin-top: 5px; font-size: 12px;">Data: ____/____/________</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Oratorio di Sergnano - Documento generato in data: ${new Date().toLocaleDateString('it-IT')}</p>
+  </div>
+
+  <div class="no-print" style="text-align: center; margin-top: 40px;">
+    <button onclick="window.print()" style="padding: 12px 30px; font-size: 16px; cursor: pointer; background: #27ae60; color: white; border: none; border-radius: 6px;">
+      🖨️ Stampa
+    </button>
+  </div>
+</body>
+</html>
+    `;
+
+    // Apri una nuova finestra e scrivi il contenuto
+    const finestra = window.open('', '', 'width=800,height=900');
+    finestra.document.write(contenuto);
+    finestra.document.close();
+  }
+
   // Genera codice se non esiste, poi apre mailto con le credenziali
   const inviaCredenziali = async (i) => {
     setInvioStato(p => ({ ...p, [i.id]: 'sending' }))
@@ -3514,6 +3766,8 @@ Oratorio di Sergnano`)
                     onClick={() => setQrModal(i)}>📲</button>
                 )}
 
+                <button className="btn btn-sm btn-ghost" title="Stampa scheda iscrizione"
+                  onClick={() => stampaScheda(i)}>🖨️</button>
                 <button className="btn btn-sm btn-ghost" title="Modifica dati" onClick={() => apriModifica(i)}>✏️</button>
                 <button className="btn btn-sm btn-ghost" title="Reset password genitore"
                   onClick={() => { setResetModal(i); setResetLink('') }}>🔑</button>
