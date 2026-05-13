@@ -7236,6 +7236,8 @@ const CONFIG_DEFAULT_CAMPETTO = {
   orario_inizio: 17,
   orario_fine: 22,
   prezzi: {
+    '0.5h_no_docce': 6,
+    '0.5h_docce': 9,
     '1h_no_docce': 10,
     '1h_docce': 15,
     '1_5h_no_docce': 14,
@@ -7554,7 +7556,7 @@ function PushAttivaBtn({ externalId, label = '' }) {
 
 function PubCampettoForm({ onBack, authUser, profilo }) {
   const [config, setConfig] = useState(null)
-  const [form, setForm] = useState({ nome: '', telefono: '', email: '', data: '', ora: '17:00', durata: '1h', docce: false, note: '', dati_extra: {}, metodo_pagamento: '', consenso_privacy: false })
+  const [form, setForm] = useState({ nome: '', telefono: '', email: '', data: '', ora: '17:00', durata: '0.5h', docce: false, note: '', dati_extra: {}, metodo_pagamento: '', consenso_privacy: false })
   const [success, setSuccess] = useState(false)
   const [saving, setSaving] = useState(false)
   const { dateBloccate, isBloccata } = useDateBloccate()
@@ -7589,6 +7591,7 @@ function PubCampettoForm({ onBack, authUser, profilo }) {
   const p = config.prezzi
   const calcPrezzo = () => {
     const { durata, docce } = form
+    if (durata === '0.5h') return docce ? p['0.5h_docce'] : p['0.5h_no_docce']
     if (durata === '1h')   return docce ? p['1h_docce']   : p['1h_no_docce']
     if (durata === '1.5h') return docce ? p['1_5h_docce'] : p['1_5h_no_docce']
     return (+durata.replace('h', '') * p.extra_h) + (docce ? p.extra_docce : 0)
@@ -7600,11 +7603,11 @@ function PubCampettoForm({ onBack, authUser, profilo }) {
     const { data: esistentiCamp } = await supabase
       .from('prenotazioni_campetto').select('ora, durata').eq('data', form.data)
     if (esistentiCamp && esistentiCamp.length > 0) {
-      const durMin = { '1h':60,'1.5h':90,'2h':120,'2.5h':150,'3h':180 }
+      const durMin = { '0.5h':30,'1h':60,'1.5h':90,'2h':120,'2.5h':150,'3h':180 }
       const toMs = (t) => { const [h,m] = t.split(':').map(Number); return h*60+m }
-      const ns = toMs(form.ora); const ne = ns + (durMin[form.durata]||60)
+      const ns = toMs(form.ora); const ne = ns + (durMin[form.durata]||30)
       const conflitto = esistentiCamp.some(p => {
-        const ps = toMs(p.ora||'00:00'); const pe = ps + (durMin[p.durata]||60)
+        const ps = toMs(p.ora||'00:00'); const pe = ps + (durMin[p.durata]||30)
         return ns < pe && ne > ps
       })
       if (conflitto) {
@@ -7674,8 +7677,8 @@ function PubCampettoForm({ onBack, authUser, profilo }) {
         <div className="form-group">
           <label className="form-label">Durata *</label>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {['1h','1.5h','2h','2.5h','3h'].map(d => (
-              <button key={d} className={`btn ${form.durata === d ? 'btn-primary' : 'btn-ghost'}`} onClick={() => set('durata', d)}>{d}</button>
+            {['0.5h','1h','1.5h','2h','2.5h','3h'].map(d => (
+              <button key={d} className={`btn ${form.durata === d ? 'btn-primary' : 'btn-ghost'}`} onClick={() => set('durata', d)}>{d === '0.5h' ? '30 min' : d}</button>
             ))}
           </div>
         </div>
