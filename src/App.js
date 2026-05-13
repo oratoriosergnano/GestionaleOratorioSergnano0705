@@ -5345,12 +5345,22 @@ function ModalCreaEvento({ onClose, user }) {
   const crea = async () => {
     if (!form.nome || !form.data_inizio || !form.data_fine) { alert('Compila tutti i campi obbligatori.'); return }
     setSaving(true)
-    await supabase.from('eventi').insert([{ ...form, attivo: true }])
-    logAudit({ user, azione: 'CREA_EVENTO', categoria: 'Eventi',
-      dettaglio: `Creato evento "${form.nome}"`,
-      meta: { nome: form.nome, data_inizio: form.data_inizio, data_fine: form.data_fine } })
-    setSaving(false)
-    onClose()
+    try {
+      const { error } = await supabase.from('eventi').insert([{ ...form, attivo: true }])
+      if (error) {
+        alert('Errore nella creazione evento: ' + error.message)
+        setSaving(false)
+        return
+      }
+      logAudit({ user, azione: 'CREA_EVENTO', categoria: 'Eventi',
+        dettaglio: `Creato evento "${form.nome}"`,
+        meta: { nome: form.nome, data_inizio: form.data_inizio, data_fine: form.data_fine } })
+      setSaving(false)
+      onClose()
+    } catch (err) {
+      alert('Errore nella creazione evento: ' + err.message)
+      setSaving(false)
+    }
   }
 
   return (
@@ -5551,11 +5561,21 @@ function ModalEditEvento({ evento, onClose, user }) {
 
   const salva = async () => {
     setSaving(true)
-    await supabase.from('eventi').update(form).eq('id', evento.id)
-    logAudit({ user, azione: 'MODIFICA_EVENTO', categoria: 'Eventi',
-      dettaglio: `Modificato evento "${form.nome}"`,
-      meta: { evento_id: evento.id, nome: form.nome } })
-    setSaving(false); onClose()
+    try {
+      const { error } = await supabase.from('eventi').update(form).eq('id', evento.id)
+      if (error) {
+        alert('Errore nel salvataggio evento: ' + error.message)
+        setSaving(false)
+        return
+      }
+      logAudit({ user, azione: 'MODIFICA_EVENTO', categoria: 'Eventi',
+        dettaglio: `Modificato evento "${form.nome}"`,
+        meta: { evento_id: evento.id, nome: form.nome } })
+      setSaving(false); onClose()
+    } catch (err) {
+      alert('Errore nel salvataggio evento: ' + err.message)
+      setSaving(false)
+    }
   }
 
   return (
