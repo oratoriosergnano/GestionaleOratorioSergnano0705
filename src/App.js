@@ -7236,14 +7236,14 @@ const CONFIG_DEFAULT_CAMPETTO = {
   orario_inizio: 17,
   orario_fine: 22,
   prezzi: {
-    '0.5h_no_docce': 6,
-    '0.5h_docce': 9,
-    '1h_no_docce': 10,
-    '1h_docce': 15,
-    '1_5h_no_docce': 14,
-    '1_5h_docce': 19,
-    'extra_h': 6,
-    'extra_docce': 3
+    '0.5h_no_docce': 20,
+    '0.5h_docce': 30,
+    '1h_no_docce': 40,
+    '1h_docce': 50,
+    '1_5h_no_docce': 60,
+    '1_5h_docce': 70,
+    'extra_h': 40,
+    'extra_docce': 10
   },
   campi_extra: [],
   metodi_pagamento: ['Contanti','POS/Carta','Bonifico']
@@ -7360,12 +7360,59 @@ function AdminCampetto({ user, goPublic, goBack }) {
         <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditPrice(false)}>
           <div className="modal">
             <div className="modal-title">💰 Prezzi Campetto</div>
-            {Object.entries(prezzi).map(([k, v]) => (
-              <div className="form-group" key={k}>
-                <label className="form-label">{k.replace(/_/g, ' ')} (€)</label>
-                <input className="form-input" type="number" value={v} onChange={e => setPrezzi(p => ({ ...p, [k]: +e.target.value }))} />
+            
+            <div style={{ marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>Prezzi per durata</div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">30 minuti (senza docce) €</label>
+                  <input className="form-input" type="number" value={prezzi['0.5h_no_docce']} onChange={e => setPrezzi(p => ({ ...p, '0.5h_no_docce': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">30 minuti (con docce) €</label>
+                  <input className="form-input" type="number" value={prezzi['0.5h_docce']} onChange={e => setPrezzi(p => ({ ...p, '0.5h_docce': +e.target.value }))} />
+                </div>
               </div>
-            ))}
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">1 ora (senza docce) €</label>
+                  <input className="form-input" type="number" value={prezzi['1h_no_docce']} onChange={e => setPrezzi(p => ({ ...p, '1h_no_docce': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">1 ora (con docce) €</label>
+                  <input className="form-input" type="number" value={prezzi['1h_docce']} onChange={e => setPrezzi(p => ({ ...p, '1h_docce': +e.target.value }))} />
+                </div>
+              </div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">1.5 ore (senza docce) €</label>
+                  <input className="form-input" type="number" value={prezzi['1_5h_no_docce']} onChange={e => setPrezzi(p => ({ ...p, '1_5h_no_docce': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">1.5 ore (con docce) €</label>
+                  <input className="form-input" type="number" value={prezzi['1_5h_docce']} onChange={e => setPrezzi(p => ({ ...p, '1_5h_docce': +e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 800, marginBottom: 10, color: 'var(--primary)' }}>Prezzi extra (per durate oltre 1.5h)</div>
+              
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Prezzo per ogni ora aggiuntiva €</label>
+                  <input className="form-input" type="number" value={prezzi['extra_h']} onChange={e => setPrezzi(p => ({ ...p, 'extra_h': +e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Prezzo docce aggiuntive €</label>
+                  <input className="form-input" type="number" value={prezzi['extra_docce']} onChange={e => setPrezzi(p => ({ ...p, 'extra_docce': +e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setEditPrice(false)}>Annulla</button>
               <button className="btn btn-primary" onClick={async () => {
